@@ -16,15 +16,28 @@
 CEulerMethod::CEulerMethod(const CDataContainer * pParent,
                            const CTaskEnum::Method & methodType,
                            const CTaskEnum::Task & taskType): 
-        CTrajectoryMethod(pParent, methodType, taskType), //Basisklassenkosntruktot - war bei stochdirect so
-        mTargetTime(0.0)
+CTrajectoryMethod(pParent, methodType, taskType), //Basisklassenkosntruktot - war bei stochdirect so
+mTargetTime(0.0), 
+mData(), 
+mpY(0), 
+mpYdot(NULL),
+mpYd(NULL)
 {
+  assert((void *) &mData == (void *) &mData.dim);
+  mData.pMethod = this;
   initializeParameter();
 }
 
-CEulerMethod::CEulerMethod(const CEulerMethod & src, const CDataContainer * pParent)
-: CTrajectoryMethod(src, pParent)
+CEulerMethod::CEulerMethod(const CEulerMethod & src,
+                           const CDataContainer * pParent): 
+CTrajectoryMethod(src, pParent),
+mTargetTime(0.0), 
+mData(), 
+mpY(0), 
+mpYdot(NULL)
 {
+  assert((void *) &mData == (void *) &mData.dim);
+  mData.pMethod = this;
   initializeParameter();
 }
 
@@ -44,7 +57,41 @@ void CEulerMethod::start()
   const CTrajectoryProblem * pTP = static_cast<const CTrajectoryProblem *>(mpProblem); //static cast gibt zugriff auf andere Basisklasse 
   mTargetTime = *mpContainerStateTime + pTP->getDuration(); //mTargettime wird die Dauer des Problems zugewiesen 
   mStepsize = getValue< double >("Step size"); //getValue oder getParameeter?
+  mpY = mContainerState.array(); //changed compared to radau5 becuase i dont need the starting time 
+  mpYdot = mpContainer->getRate(*mpReducedModel).array() + mpContainer->getCountFixedEventTargets();
 }
+
+
+/**
+   * from Radau5 - also used after start
+   */
+// from Radau5 but just evalF would also be fine I think ????
+void CEulerMethod::EvalF(const C_INT * n, const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot, C_FLOAT64 *, C_INT *)
+{
+  static_cast<Data *>((void *) n)->pMethod->evalF(t, y, ydot);
+}
+
+void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot)
+{
+  CVector< C_FLOAT64 > yTemp(mData.dim);
+  memcpy(yTemp.array(), mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+
+  if (y != mpContainerStateTime)
+    memcpy(mpContainerStateTime, y, mData.dim * sizeof(C_FLOAT64));
+
+  mpContainer->updateSimulatedValues(*mpReducedModel);
+  memcpy(ydot, mpYdot, mData.dim * sizeof(C_FLOAT64));
+
+#ifdef DEBUG_NUMERICS
+  std::cout << "State:     " << mpContainer->getState(false) << std::endl;
+  std::cout << "Rate:      " << mpContainer->getRate(false) << std::endl;
+#endif // DEBUG_NUMERICS
+
+  memcpy(mpContainerStateTime, yTemp.array(), mData.dim * sizeof(C_FLOAT64));
+
+  return;
+}
+
 
 
 CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT,
@@ -69,27 +116,23 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT,
 C_FLOAT64 CEulerMethod::doSingleStep(C_FLOAT64 startTime, const C_FLOAT64 & endTime)
 {
   C_FLOAT64 h = mStepsize;
-  // y müsste eigentlich mpContainer sein 
+  evalF(&startTime, mpY, mpYd); 
+
+  for (int i = 0; i < mData.dim; ++i)
+{
+  mpY[i] = mpY[i] + h * mpYd[i];
+}
+
+// Zeit vorschieben
+*mpContainerStateTime += h;
+
+return *mpContainerStateTime;
   
 
-  
 
-  // 2. Aktualisiere rechte Seite (d.h. berechne Ableitungen)
-  //mpMathContainer->getValues();
+  // Änderungsraten neu berechnen (für den aktuellen Zustand mpY)
 
-  // 3. Zugriff auf Zustand und Ableitungen
-  //std::vector<C_FLOAT64> & y = mpMathContainer->getState();
-  //std::vector<C_FLOAT64> & ydot = mpMathContainer->getDerivatives();
-
-  /* 4. Euler-Schritt: y = y + h * ydot
-  for (size_t i = 0; i < y.size(); ++i)
-  {
-    y[i] += h * ydot[i];
-
-
-  }
-
-  */ // 5. Zeit vorschieben
+  // Zeit vorschieben
   *mpContainerStateTime += h;
 
   return *mpContainerStateTime;
