@@ -78,6 +78,8 @@ const CTaskEnum::Method CTrajectoryTask::ValidMethods[] =
   CTaskEnum::Method::hybrid,
   CTaskEnum::Method::hybridLSODA,
   CTaskEnum::Method::hybridODE45,
+  CTaskEnum::Method::EulerMethod,
+
 #ifdef COPASI_DEBUG
   CTaskEnum::Method::DsaLsodar,
 #endif // COPASI_DEBUG

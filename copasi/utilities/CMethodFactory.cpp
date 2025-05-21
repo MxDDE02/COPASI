@@ -46,6 +46,7 @@
 #include "copasi/trajectory/CLsodaMethod.h"
 #include "copasi/trajectory/CRadau5Method.h"
 #include "copasi/trajectory/CStochDirectMethod.h"
+#include "copasi/trajectory/CEuler.h"
 // #include "copasi/trajectory/CStochMethod.h"
 #include "copasi/trajectory/CHybridNextReactionRKMethod.h"
 #include "copasi/trajectory/CHybridNextReactionLSODAMethod.h"
@@ -265,6 +266,10 @@ CCopasiMethod * CMethodFactory::create(const CTaskEnum::Task & taskType,
       case CTaskEnum::Method::timeSensLsoda:
         pMethod = new CTimeSensLsodaMethod(pParent, methodType, taskType);
         break;
+
+      case CTaskEnum::Method::EulerMethod:
+        pMethod = new CEulerMethod(pParent, methodType, taskType);
+        break;
     }
 
   if (pMethod != NULL
@@ -472,6 +477,10 @@ CCopasiMethod * CMethodFactory::copy(const CCopasiMethod * pSrc, const CDataCont
 
       case CTaskEnum::Method::timeSensLsoda:
         pCopy = new CTimeSensLsodaMethod(*static_cast< const CTimeSensLsodaMethod * >(pSrc), pParent);
+        break;
+
+      case CTaskEnum::Method::EulerMethod:
+        pCopy = new CEulerMethod(*static_cast< const CEulerMethod * >(pSrc), pParent);
         break;
     }
 
