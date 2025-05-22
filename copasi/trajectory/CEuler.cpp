@@ -19,7 +19,7 @@ CEulerMethod::CEulerMethod(const CDataContainer * pParent,
 CTrajectoryMethod(pParent, methodType, taskType), //Basisklassenkosntruktot - war bei stochdirect so
 mTargetTime(0.0), 
 mData(), 
-mpY(0), 
+mpY(NULL), 
 mpYdot(NULL),
 mpYd(NULL)
 {
@@ -33,7 +33,7 @@ CEulerMethod::CEulerMethod(const CEulerMethod & src,
 CTrajectoryMethod(src, pParent),
 mTargetTime(0.0), 
 mData(), 
-mpY(0), 
+mpY(NULL), 
 mpYdot(NULL)
 {
   assert((void *) &mData == (void *) &mData.dim);
@@ -55,10 +55,15 @@ void CEulerMethod::start()
 {
   CTrajectoryMethod::start();
   const CTrajectoryProblem * pTP = static_cast<const CTrajectoryProblem *>(mpProblem); //static cast gibt zugriff auf andere Basisklasse 
+  mData.dim = (C_INT)(mContainerState.size() - mpContainer->getCountFixedEventTargets());
+  pdeletev(mpY);
+  mpY = new C_FLOAT64[mData.dim];
+  pdeletev(mpYd);
+  mpYd = new C_FLOAT64[mData.dim];
   mTargetTime = *mpContainerStateTime + pTP->getDuration(); //mTargettime wird die Dauer des Problems zugewiesen 
   mStepsize = getValue< double >("Step size"); //getValue oder getParameeter?
-  mpY = mContainerState.array(); //changed compared to radau5 becuase i dont need the starting time 
   mpYdot = mpContainer->getRate(*mpReducedModel).array() + mpContainer->getCountFixedEventTargets();
+  memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
 }
 
 
@@ -73,8 +78,8 @@ void CEulerMethod::EvalF(const C_INT * n, const C_FLOAT64 * t, const C_FLOAT64 *
 
 void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot)
 {
-  CVector< C_FLOAT64 > yTemp(mData.dim);
-  memcpy(yTemp.array(), mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+  //CVector< C_FLOAT64 > yTemp(mData.dim);
+  //memcpy(yTemp.array(), mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
 
   if (y != mpContainerStateTime)
     memcpy(mpContainerStateTime, y, mData.dim * sizeof(C_FLOAT64));
@@ -87,7 +92,7 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
   std::cout << "Rate:      " << mpContainer->getRate(false) << std::endl;
 #endif // DEBUG_NUMERICS
 
-  memcpy(mpContainerStateTime, yTemp.array(), mData.dim * sizeof(C_FLOAT64));
+  //memcpy(mpContainerStateTime, yTemp.array(), mData.dim * sizeof(C_FLOAT64));
 
   return;
 }
@@ -120,20 +125,14 @@ C_FLOAT64 CEulerMethod::doSingleStep(C_FLOAT64 startTime, const C_FLOAT64 & endT
 
   for (int i = 0; i < mData.dim; ++i)
 {
-  mpY[i] = mpY[i] + h * mpYd[i];
+   mpY[i] = mpY[i] + h * mpYd[i];
 }
-
-// Zeit vorschieben
-*mpContainerStateTime += h;
-
-return *mpContainerStateTime;
-  
-
-
-  // Änderungsraten neu berechnen (für den aktuellen Zustand mpY)
-
   // Zeit vorschieben
   *mpContainerStateTime += h;
 
-  return *mpContainerStateTime;
+  memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
+  mpContainer->updateSimulatedValues(false);
+
+return *mpContainerStateTime;
+
 }
