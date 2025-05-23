@@ -50,7 +50,7 @@ private:
     /**
    * Pointer to the array with left hand side values of the math container.
    */
-  const C_FLOAT64 * mpY;
+  C_FLOAT64 * mpY;
 
   /**
    * Pointer to the array with right hand side values of the math container.
