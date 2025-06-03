@@ -12,7 +12,7 @@
 #include "copasi/utilities/CCopasiMethod.h"
 #include "copasi/model/CModel.h"
 #include <vector>
-#include <iomanip>  // für std::setprecision
+
 
 
 
@@ -54,8 +54,11 @@ CEulerMethod::~CEulerMethod()
 
 void CEulerMethod::initializeParameter()
 {
-  assertParameter("Step size", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.01);
-  assertParameter("Interpolation", CCopasiParameter::Type::BOOL, true);;
+  assertParameter("initial step size", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.01);
+  assertParameter("epsilon", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 1);
+  assertParameter("absolute tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 1);
+  assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 1);
+
 }
 
 void CEulerMethod::start()
@@ -78,6 +81,9 @@ void CEulerMethod::start()
 
   // 6. Retrieve the integration step size from parameters
   mStepsize = getValue< double >("Step size");
+  euler_epsilon = getValue< double >("epsilon");
+  euler_atolerance = getValue< double >("absolute tolerance");
+  euler_rtolerance = getValue< double >("relative tolerance");
 
   // 7. Allocate memory for state (mpY) and derivative (mpYd) vectors
   mpY = new C_FLOAT64[mData.dim];
@@ -101,8 +107,6 @@ void CEulerMethod::EvalF(const C_INT * n, const C_FLOAT64 * t, const C_FLOAT64 *
   static_cast<Data *>((void *) n)->pMethod->evalF(t, y, ydot);
 }
 */
-
-//Uncoment this - if the evaluation of the math container should be in a seperate function (unnecessary in Euler)
 /*
 void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot)
 {
@@ -135,26 +139,28 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   TimeStatePair initial;
   initial.time = *mpContainerStateTime;
   initial.state.assign(mpY, mpY + mData.dim);
-  initial.rate.assign(mpYdot, mpYdot + mData.dim);
-  mHistory.push_back(initial);
+  mHistoryinter.push_back(initial);
 
-
+  //the actual integration
   while (*mpContainerStateTime < outputTime)
   {
+    estimateError(*mpContainerStateTime);
     doSingleStep(*mpContainerStateTime);
   }
   
   //Interpolation -> get the Trajectory Problem defined state at the requested time 
   std::vector<C_FLOAT64> interpolatedState = interpolateAt(outputTime);
+  //Update everything to the interpolated output 
   memcpy(mpContainerStateTime, interpolatedState.data(), mData.dim * sizeof(C_FLOAT64));
-
-
+  memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
   *mpContainerStateTime = outputTime;
 
+  //clearing the mHistory for next steps 
+  mHistoryinter.clear();
   return NORMAL;
 }
 
-C_FLOAT64 CEulerMethod::doSingleStep(C_FLOAT64 startTime)
+void CEulerMethod::doSingleStep(C_FLOAT64 startTime)
 {
   // Calclate the rates => evalF 
   if (mpY != mpContainerStateTime)
@@ -175,49 +181,99 @@ C_FLOAT64 CEulerMethod::doSingleStep(C_FLOAT64 startTime)
     memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
     //mpContainer->updateSimulatedValues(false);
 
-    // Save each Euler-Step result in the mHistory 
+    // Save each Euler-Step result in the mHistory -> interpolation
     TimeStatePair ts;
     ts.time = *mpContainerStateTime;
     ts.state.assign(mpY, mpY + mData.dim);
-    ts.rate.assign(mpYd, mpYd + mData.dim);
-    mHistory.push_back(ts);
+    mHistoryinter.push_back(ts);
   }
 
+C_FLOAT64 CEulerMethod::estimateError(C_FLOAT64 t)
+{
+  //Allocating space for the intermediate steps to calculate the error 
+  std::vector<C_FLOAT64> y_original(mpY, mpY + mData.dim);
+  std::vector<C_FLOAT64> fullstep(mData.dim);
+  std::vector<C_FLOAT64> halfstep(mData.dim);
+  std::vector<C_FLOAT64> yd_temp(mData.dim);
+  std::vector<C_FLOAT64> deltaerror(mData.dim);
+  std::vector<C_FLOAT64> scale(mData.dim);
+
+
+  // == 1. calculate rates (original time) ==
+  if (mpY != mpContainerStateTime)
+    memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
+  mpContainer->updateSimulatedValues(false);
+  memcpy(mpYd, mpYdot, mData.dim * sizeof(C_FLOAT64));
+
+  // == 2. full step ==
+  for (int i = 0; i < mData.dim; ++i)
+    fullstep[i] = y_original[i] + mStepsize * mpYd[i];
+
+  // == 3. half step  ==
+  for (int i = 0; i < mData.dim; ++i)
+    mpY[i] = y_original[i] + (mStepsize / 2.0) * mpYd[i];
+
+  // == calculate the rate at the intermediate time ==
+  *mpContainerStateTime = t + mStepsize / 2.0;
+  memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
+  mpContainer->updateSimulatedValues(false);
+  memcpy(yd_temp.data(), mpYdot, mData.dim * sizeof(C_FLOAT64));
+
+  // == 4. half step - second  ==
+  for (int i = 0; i < mData.dim; ++i)
+    halfstep[i] = mpY[i] + (mStepsize / 2.0) * yd_temp[i];
+
+  // == 5. error calculation ==
+  C_FLOAT64 localerror = 0.0;
+  for (int i = 1; i < mData.dim; ++i) //irgnore time 
+  {
+    deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
+    scale[i] = euler_atolerance + std::max(std::abs(halfstep[i]), std::abs(fullstep[i])) * euler_rtolerance;
+    localerror = std::abs(deltaerror[i]/scale[i])/(mData.dim-1); // -1 to irgnore the time;
+  }
+
+  // == return to origninal state ==
+  memcpy(mpY, y_original.data(), mData.dim * sizeof(C_FLOAT64));
+  *mpContainerStateTime = t;
+
+  if (mpY != mpContainerStateTime)
+  memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
+  mpContainer->updateSimulatedValues(false); 
+
+  //stepsize adjustment
+  if(localerror>1)
+  {
+    return mStepsize = mStepsize *std::sqrt(euler_epsilon/localerror);
+  }
+  else
+  {
+    return mStepsize;
+  }
+
+}
 
 
 std::vector<C_FLOAT64> CEulerMethod::interpolateAt(C_FLOAT64 t) const
 {
   //does nothing if no integration has been done 
-  if (mHistory.empty()) return {}; 
-  // precaution: if the time is smaller then the starttime (=0) the starting state will be returned 
-  if (t <= mHistory.front().time) return mHistory.front().state; 
-  // prectaution: if the time is bigger then the endtime , the end state will be returned 
-  if (t >= mHistory.back().time) return mHistory.back().state;
+  if (mHistoryinter.empty()) return {}; 
  
-  // Find the interpolation - intervall borders 
-  for (size_t i = 1; i < mHistory.size(); ++i)
+  // Find the interpolation - intervall 
+  for (size_t i = 1; i < mHistoryinter.size(); ++i)
   {
-    // precaution: if a entry for the requested time already exists
-    if (mHistory[i].time == t) return mHistory[i].state;
-    //search for the first time point, which is bigger then t => right border 
-    else if (mHistory[i].time > t)
+    if (mHistoryinter[i].time >= t)
     {
       // time points which should interpolate 
-      const TimeStatePair& p0 = mHistory[i - 1]; //left border 
-      const TimeStatePair& p1 = mHistory[i]; //right border 
-      //if Euler interpolation is requested 
-      //C_FLOAT64 h0 = t - p0.time; 
+      const TimeStatePair& p0 = mHistoryinter[i - 1]; //left border 
+      const TimeStatePair& p1 = mHistoryinter[i]; //right border 
+
 
       //vector for saving the interpolated state at time t 
       std::vector<C_FLOAT64> interpolated(mData.dim);
       for (int j = 0; j < mData.dim; ++j)
       {
-        //linear interpolation: euler step with different step size 
-        //interpolated[j] = p0.state[j] + h0 * p0.rate[j];
-
         //linear interpolation y = y1 + ((x-x1)/(x2-x1)) * (y2-y1)
         interpolated[j] = p0.state[j] + ((t - p0.time) / (p1.time - p0.time)) * (p1.state[j] - p0.state[j]);
-
       } 
 
       return interpolated;

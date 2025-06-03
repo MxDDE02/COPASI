@@ -17,7 +17,6 @@ public:
   {
     C_FLOAT64 time;
     std::vector<C_FLOAT64> state;
-    std::vector<C_FLOAT64> rate;
   };
   /**
    *  Construtor 
@@ -45,7 +44,8 @@ public:
    * - mTargetTime to get the value of the duration (from TrajectoryProblem)
    * - mStepsize to get the value of the step sizes given in the initializeParamter-function
    * - mpY and mpYd as an empy pointer array of size mData.dim  
-   * - then copies the state vector into mpY 
+   * - copies the state vector into mpY 
+   * - Saving of the initial Math-Container in the mHistory - for interpolation
    */
   virtual void start();
 /**
@@ -56,9 +56,13 @@ public:
   virtual CTrajectoryMethod::Status step(const double & deltaT, const bool & final); //added virtual to that 
 
   /**
-   *  The Euler steps 
+   *  Euler step (1 step)
+   * -> updates the mathcontainer
+   * @param t  The time at which the euler step should start 
    */
-  C_FLOAT64 doSingleStep(C_FLOAT64 startTime);
+  void doSingleStep(C_FLOAT64 startTime);
+
+
 
   /**
     * Returns a linearly interpolated state for the given time.
@@ -67,6 +71,14 @@ public:
     * @return   A vector containing the interpolated state.
     */
    std::vector<C_FLOAT64> interpolateAt(C_FLOAT64 t) const;
+
+ /**
+   *  Function to calculate the error (2nd order) 
+   * @param t  The time at which the error calculation is required 
+   * - utilized step doubling to calculate the local error 
+   * - stepsize is adjusted according to the error 
+   */
+   C_FLOAT64 estimateError(C_FLOAT64 t);
 
 
  /**
@@ -95,6 +107,21 @@ private:
    * Float, which stores the step size from the initialized parameter "Step size"
    */
   C_FLOAT64 mStepsize;
+/**
+   * Float, which stores the epsilon from the initialized parameter "epsilon" - error tolerance
+   */
+  C_FLOAT64 euler_epsilon;
+
+/**
+   * Float, which stores the absolute error tolerance from the initialized parameter "absolute tolerance"
+   */
+  C_FLOAT64 euler_atolerance;
+
+/**
+   * Float, which stores the relative error tolerance from the initialized parameter "relative tolerance"
+   */
+  C_FLOAT64 euler_rtolerance;
+  
   /**
    * mData.dim is the dimension of the ODE system. 
    * It is used to determine the size of the state vector
@@ -129,5 +156,5 @@ private:
     * A history of time and state pairs stored during the integration.
     * This is used for linear interpolation to obtain the state at arbitrary times.
     */
-  std::vector<TimeStatePair> mHistory;
+  std::vector<TimeStatePair> mHistoryinter;
 };
