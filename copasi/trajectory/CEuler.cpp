@@ -20,7 +20,6 @@ CEulerMethod::CEulerMethod(const CDataContainer * pParent,
                            const CTaskEnum::Method & methodType,
                            const CTaskEnum::Task & taskType): 
 CTrajectoryMethod(pParent, methodType, taskType),
-mTargetTime(0.0), 
 mData(), 
 mpY(NULL), 
 mpYdot(NULL),
@@ -34,8 +33,6 @@ mpYd(NULL)
 CEulerMethod::CEulerMethod(const CEulerMethod & src,
                            const CDataContainer * pParent): 
 CTrajectoryMethod(src, pParent),
-mTargetTime(0.0), 
-mIntervalSize(0.0),
 mData(), 
 mpY(NULL), 
 mpYdot(NULL), 
@@ -75,12 +72,8 @@ void CEulerMethod::start()
   // 4. Get pointer to rate vector (excluding fixed event targets)
   mpYdot = mpContainer->getRate(*mpReducedModel).array() + mpContainer->getCountFixedEventTargets();
 
-  // 5. Set simulation end time and initial step interval
-  mTargetTime = *mpContainerStateTime + pTP->getDuration();
-  mIntervalSize = *mpContainerStateTime + pTP->getStepSize();
-
   // 6. Retrieve the integration step size from parameters
-  mStepsize = getValue< double >("Step size");
+  mStepsize = getValue< double >("initial step size");
   euler_epsilon = getValue< double >("epsilon");
   euler_atolerance = getValue< double >("absolute tolerance");
   euler_rtolerance = getValue< double >("relative tolerance");
@@ -243,7 +236,7 @@ C_FLOAT64 CEulerMethod::estimateError(C_FLOAT64 t)
   //stepsize adjustment
   if(localerror>1)
   {
-    return mStepsize = mStepsize *std::sqrt(euler_epsilon/localerror);
+    return mStepsize = mStepsize *(euler_epsilon/localerror);
   }
   else
   {

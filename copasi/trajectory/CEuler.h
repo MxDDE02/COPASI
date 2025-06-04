@@ -98,11 +98,6 @@ protected:
   void initializeParameter();
 
 private:
-  /**
-   * Float, which stores the duration of the TrajectoryProblem
-   */
-  C_FLOAT64 mTargetTime;
-
 /**
    * Float, which stores the step size from the initialized parameter "Step size"
    */
@@ -146,11 +141,6 @@ private:
    * 
    */
   C_FLOAT64 * mpYd;
-
-/**
-   * Float, which stores the intervall size of the TrajectoryProblem
-   */
-  C_FLOAT64 mIntervalSize; 
 
   /**
     * A history of time and state pairs stored during the integration.
