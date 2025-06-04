@@ -52,9 +52,8 @@ CEulerMethod::~CEulerMethod()
 void CEulerMethod::initializeParameter()
 {
   assertParameter("initial step size", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.01);
-  assertParameter("epsilon", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 1);
-  assertParameter("absolute tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 1);
-  assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 1);
+  assertParameter("absolute tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000001);
+  assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000000001);
 
 }
 
@@ -74,7 +73,6 @@ void CEulerMethod::start()
 
   // 6. Retrieve the integration step size from parameters
   mStepsize = getValue< double >("initial step size");
-  euler_epsilon = getValue< double >("epsilon");
   euler_atolerance = getValue< double >("absolute tolerance");
   euler_rtolerance = getValue< double >("relative tolerance");
 
@@ -84,14 +82,6 @@ void CEulerMethod::start()
 
   // 8. Copy current state into local state vector
   memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
-
-  // 9. Ensure step size does not exceed total interval size 
-  /*
-  if (mStepsize > mIntervalSize)
-  {
-    mStepsize = mIntervalSize;
-  }
-  */
 }
 
 /* Uncomment this - if the integrator is written in Fortan 
@@ -137,9 +127,8 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   //the actual integration
   while (*mpContainerStateTime < outputTime)
   {
-    estimateError(*mpContainerStateTime);
-    doSingleStep(*mpContainerStateTime);
-  }
+    doOneStep(*mpContainerStateTime);
+  } 
   
   //Interpolation -> get the Trajectory Problem defined state at the requested time 
   std::vector<C_FLOAT64> interpolatedState = interpolateAt(outputTime);
@@ -153,101 +142,87 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   return NORMAL;
 }
 
-void CEulerMethod::doSingleStep(C_FLOAT64 startTime)
+bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
 {
-  // Calclate the rates => evalF 
-  if (mpY != mpContainerStateTime)
-  memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
-  mpContainer->updateSimulatedValues(false);
-  memcpy(mpYd, mpYdot, mData.dim * sizeof(C_FLOAT64)); 
+  bool accepted = false;
+  // == 
+  while (!accepted)
+  {
+    std::vector<C_FLOAT64> y_original(mpY, mpY + mData.dim);
+    C_FLOAT64 t_old = *mpContainerStateTime;
 
-  // Euler-Step: y = y + h * f(y)
+    std::vector<C_FLOAT64> fullstep(mData.dim);
+    std::vector<C_FLOAT64> halfstep(mData.dim);
+    std::vector<C_FLOAT64> yd_temp(mData.dim);
+    std::vector<C_FLOAT64> deltaerror(mData.dim);
+    std::vector<C_FLOAT64> scale(mData.dim);
+
+    // == 1. calculate rates ==
+    if (mpY != mpContainerStateTime)
+      memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
+    mpContainer->updateSimulatedValues(false);
+    memcpy(mpYd, mpYdot, mData.dim * sizeof(C_FLOAT64));
+
+    // == 2. full step ==
+    for (int i = 0; i < mData.dim; ++i)
+      fullstep[i] = y_original[i] + mStepsize * mpYd[i];
+
+    // == 3. first half step ==
+    for (int i = 0; i < mData.dim; ++i)
+      mpY[i] = y_original[i] + (mStepsize / 2.0) * mpYd[i];
+
+    *mpContainerStateTime = t_old + mStepsize / 2.0;
+    memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
+    mpContainer->updateSimulatedValues(false);
+    memcpy(yd_temp.data(), mpYdot, mData.dim * sizeof(C_FLOAT64));
+
+    // == 4. second half step ==
+    for (int i = 0; i < mData.dim; ++i)
+      halfstep[i] = mpY[i] + (mStepsize / 2.0) * yd_temp[i];
+
+    // == 5. error estimation ==
+    C_FLOAT64 localerror = 0.0;
     for (int i = 0; i < mData.dim; ++i)
     {
-      mpY[i] = mpY[i] + mStepsize* mpYd[i];
+      deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
+      scale[i] = euler_atolerance + std::max(std::abs(y_original[i]), std::abs(fullstep[i])) * euler_rtolerance;
+      localerror += std::abs(deltaerror[i] / scale[i]);
     }
+    localerror = localerror/(mData.dim-1); 
 
-    // Update the time 
-    *mpContainerStateTime += mStepsize;
+    // == 6. decition if step can be accepted ==
+    if (localerror <= 1.0)
+    {
+      for (int i = 0; i < mData.dim; ++i)
+        mpY[i] = fullstep[i];
 
-    // writes the result in the math container 
-    memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
-    //mpContainer->updateSimulatedValues(false);
+      *mpContainerStateTime = t_old + mStepsize;
+      memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
 
-    // Save each Euler-Step result in the mHistory -> interpolation
-    TimeStatePair ts;
-    ts.time = *mpContainerStateTime;
-    ts.state.assign(mpY, mpY + mData.dim);
-    mHistoryinter.push_back(ts);
+      TimeStatePair ts;
+      ts.time = *mpContainerStateTime;
+      ts.state.assign(mpY, mpY + mData.dim);
+      mHistoryinter.push_back(ts);
+
+      accepted = true; 
+    }
+    else
+    {
+      // step is not accepted 
+      // stepsize will get reduced 
+      mStepsize = mStepsize * (euler_rtolerance / localerror);  
+      //bring back original state
+      memcpy(mpY, y_original.data(), mData.dim * sizeof(C_FLOAT64));
+      *mpContainerStateTime = t_old;
+    }
   }
-
-C_FLOAT64 CEulerMethod::estimateError(C_FLOAT64 t)
-{
-  //Allocating space for the intermediate steps to calculate the error 
-  std::vector<C_FLOAT64> y_original(mpY, mpY + mData.dim);
-  std::vector<C_FLOAT64> fullstep(mData.dim);
-  std::vector<C_FLOAT64> halfstep(mData.dim);
-  std::vector<C_FLOAT64> yd_temp(mData.dim);
-  std::vector<C_FLOAT64> deltaerror(mData.dim);
-  std::vector<C_FLOAT64> scale(mData.dim);
-
-
-  // == 1. calculate rates (original time) ==
-  if (mpY != mpContainerStateTime)
-    memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
-  mpContainer->updateSimulatedValues(false);
-  memcpy(mpYd, mpYdot, mData.dim * sizeof(C_FLOAT64));
-
-  // == 2. full step ==
-  for (int i = 0; i < mData.dim; ++i)
-    fullstep[i] = y_original[i] + mStepsize * mpYd[i];
-
-  // == 3. half step  ==
-  for (int i = 0; i < mData.dim; ++i)
-    mpY[i] = y_original[i] + (mStepsize / 2.0) * mpYd[i];
-
-  // == calculate the rate at the intermediate time ==
-  *mpContainerStateTime = t + mStepsize / 2.0;
-  memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
-  mpContainer->updateSimulatedValues(false);
-  memcpy(yd_temp.data(), mpYdot, mData.dim * sizeof(C_FLOAT64));
-
-  // == 4. half step - second  ==
-  for (int i = 0; i < mData.dim; ++i)
-    halfstep[i] = mpY[i] + (mStepsize / 2.0) * yd_temp[i];
-
-  // == 5. error calculation ==
-  C_FLOAT64 localerror = 0.0;
-  for (int i = 1; i < mData.dim; ++i) //irgnore time 
-  {
-    deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
-    scale[i] = euler_atolerance + std::max(std::abs(halfstep[i]), std::abs(fullstep[i])) * euler_rtolerance;
-    localerror = std::abs(deltaerror[i]/scale[i])/(mData.dim-1); // -1 to irgnore the time;
-  }
-
-  // == return to origninal state ==
-  memcpy(mpY, y_original.data(), mData.dim * sizeof(C_FLOAT64));
-  *mpContainerStateTime = t;
-
-  if (mpY != mpContainerStateTime)
-  memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
-  mpContainer->updateSimulatedValues(false); 
-
-  //stepsize adjustment
-  if(localerror>1)
-  {
-    return mStepsize = mStepsize *(euler_epsilon/localerror);
-  }
-  else
-  {
-    return mStepsize;
-  }
-
 }
 
 
 std::vector<C_FLOAT64> CEulerMethod::interpolateAt(C_FLOAT64 t) const
 {
+  //vector for saving the interpolated state at time t 
+  std::vector<C_FLOAT64> interpolated(mData.dim);
   //does nothing if no integration has been done 
   if (mHistoryinter.empty()) return {}; 
  
@@ -259,17 +234,12 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAt(C_FLOAT64 t) const
       // time points which should interpolate 
       const TimeStatePair& p0 = mHistoryinter[i - 1]; //left border 
       const TimeStatePair& p1 = mHistoryinter[i]; //right border 
-
-
-      //vector for saving the interpolated state at time t 
-      std::vector<C_FLOAT64> interpolated(mData.dim);
       for (int j = 0; j < mData.dim; ++j)
       {
         //linear interpolation y = y1 + ((x-x1)/(x2-x1)) * (y2-y1)
         interpolated[j] = p0.state[j] + ((t - p0.time) / (p1.time - p0.time)) * (p1.state[j] - p0.state[j]);
       } 
-
-      return interpolated;
     }
   }
+  return interpolated;
 }

@@ -60,7 +60,7 @@ public:
    * -> updates the mathcontainer
    * @param t  The time at which the euler step should start 
    */
-  void doSingleStep(C_FLOAT64 startTime);
+  bool doOneStep(C_FLOAT64 startTime);
 
 
 
