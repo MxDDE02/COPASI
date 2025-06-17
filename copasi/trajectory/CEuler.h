@@ -36,6 +36,13 @@ public:
    */
   ~CEulerMethod(); 
 
+  /**
+   * This methods must be called to elevate subgroups to
+   * derived objects. The default implementation does nothing.
+   * @return bool success
+   */
+  virtual bool elevateChildren();
+
 /**
    * 1. calls the start function of TrajectoryMethod to initialize the mContainerstate and time
    * 2. initializing of different parameters: 
@@ -50,17 +57,25 @@ public:
   virtual void start();
 /**
    *  Does the Euler integration until the first time interval is reached (Trajectory Problem)
-   *  - does euler steps (with the predefinded step size)
-   *  - interpolates, if the step size is bigger then the intervall size 
+   *  - does euler steps
+   *  - interpolates
    */
   virtual CTrajectoryMethod::Status step(const double & deltaT, const bool & final); //added virtual to that 
 
   /**
    *  Euler step (1 step)
    * -> updates the mathcontainer
+   * -> also adapts the stepsize according to the local error 
    * @param t  The time at which the euler step should start 
    */
-  void doSingleStep(C_FLOAT64 startTime);
+  bool doOneStep(C_FLOAT64 startTime);
+
+   /**
+  * Check if the method is suitable for this problem
+  * @return bool suitability of the method
+  */
+  virtual bool isValidProblem(const CCopasiProblem * pProblem);
+
 
 
 
@@ -70,22 +85,21 @@ public:
     * @param t  The time at which the interpolated state is requested.
     * @return   A vector containing the interpolated state.
     */
-   std::vector<C_FLOAT64> interpolateAt(C_FLOAT64 t) const;
+   std::vector<C_FLOAT64> interpolateAttime(C_FLOAT64 t) const;
 
- /**
-   *  Function to calculate the error (2nd order) 
-   * @param t  The time at which the error calculation is required 
-   * - utilized step doubling to calculate the local error 
-   * - stepsize is adjusted according to the error 
-   */
-   C_FLOAT64 estimateError(C_FLOAT64 t);
-
-
- /**
+/**
    *  This evaluates the derivatives 
    * => uses the state vector to calculate a new rate vector 
    */
+  virtual void evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot);
+
   //virtual void evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot);
+
+/**
+   *  This evaluates the events 
+   */
+  virtual void evalR(const C_FLOAT64 * t, const C_FLOAT64 * y, const C_INT * nr, C_FLOAT64 * r);
+
 
 
 
@@ -98,19 +112,10 @@ protected:
   void initializeParameter();
 
 private:
-  /**
-   * Float, which stores the duration of the TrajectoryProblem
-   */
-  C_FLOAT64 mTargetTime;
-
 /**
    * Float, which stores the step size from the initialized parameter "Step size"
    */
   C_FLOAT64 mStepsize;
-/**
-   * Float, which stores the epsilon from the initialized parameter "epsilon" - error tolerance
-   */
-  C_FLOAT64 euler_epsilon;
 
 /**
    * Float, which stores the absolute error tolerance from the initialized parameter "absolute tolerance"
@@ -121,6 +126,11 @@ private:
    * Float, which stores the relative error tolerance from the initialized parameter "relative tolerance"
    */
   C_FLOAT64 euler_rtolerance;
+
+/**
+   * value to record the predefined maximal internal steps - used in step 
+   */
+  int steplimit; 
   
   /**
    * mData.dim is the dimension of the ODE system. 
@@ -147,14 +157,20 @@ private:
    */
   C_FLOAT64 * mpYd;
 
-/**
-   * Float, which stores the intervall size of the TrajectoryProblem
+  /**
+   * Pointer to the array of the interpolated state 
    */
-  C_FLOAT64 mIntervalSize; 
 
+  C_FLOAT64 * interpolated; 
+/**
+   * value to record the outputtime for each interval
+   */
+  C_FLOAT64 outputTime; 
   /**
     * A history of time and state pairs stored during the integration.
     * This is used for linear interpolation to obtain the state at arbitrary times.
     */
   std::vector<TimeStatePair> mHistoryinter;
+  std::vector<TimeStatePair> mHistoryrootsstart;
+  std::vector<TimeStatePair> mHistoryrootsinterpolate;
 };
