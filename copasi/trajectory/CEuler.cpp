@@ -225,10 +225,10 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
     {
       if (x0.state[j] * x1.state[j] < 0)
       {
-       // Berechne Nullstelle (lineare Interpolation)
+       // calculate time for root 
         C_FLOAT64 t_root = x0.time - x0.state[j] * ((x1.time - x0.time) / (x1.state[j] - x0.state[j]));
 
-        // Speichere die Nullstelle
+        // save the rootvalue (time)
         rootTimes.push_back(t_root);
       }
     }
