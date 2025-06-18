@@ -111,7 +111,44 @@ protected:
    */
   void initializeParameter();
 
+  /**
+   * The status of the integrator
+   */
+  Status mStatus;
+
+  /**
+   * An integer, referring number of roots
+   */
+  size_t mNumRoot;
+
+   /**
+   * 2 Vector for storing root value
+   */
+  CVector< C_FLOAT64 > mRootsA;
+  CVector< C_FLOAT64 > mRootsB;
+  CVector< C_FLOAT64 > mRootsNonZero;
+
+  /**
+   * Pointer to the vector holding the previously calculated roots
+   */
+  CVector< C_FLOAT64 > *mpRootValueOld;
+
+  /**
+   * Pointer to the vector holding the newly calculated roots
+   */
+  CVector< C_FLOAT64 > *mpRootValueNew;
+
+  /**
+   * The last time dependent root time
+   */
+  C_FLOAT64 mLastRootTime;
+
 private:
+
+  /**
+   * Check whether finds a root
+   */
+  bool checkRoots();
 /**
    * Float, which stores the step size from the initialized parameter "Step size"
    */

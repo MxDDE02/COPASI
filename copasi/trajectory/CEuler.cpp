@@ -21,7 +21,15 @@ mData(),
 mpY(NULL), 
 mpYdot(NULL),
 mpYd(NULL), 
-interpolated(NULL) 
+interpolated(NULL), 
+mNumRoot(0),
+mRootsA(),
+mRootsB(),
+mRootsNonZero(),
+mpRootValueOld(NULL),
+mpRootValueNew(NULL),
+mLastRootTime(-std::numeric_limits< C_FLOAT64 >::infinity())
+
 {
   assert((void *) &mData == (void *) &mData.dim);
   mData.pMethod = this;
@@ -35,7 +43,13 @@ mData(),
 mpY(NULL), 
 mpYdot(NULL), 
 mpYd(NULL), 
-interpolated(NULL) 
+interpolated(NULL), 
+mNumRoot(src.mNumRoot),
+mRootsA(src.mRootsA),
+mRootsB(src.mRootsB),
+mRootsNonZero(src.mRootsNonZero),
+mpRootValueOld(NULL),
+mpRootValueNew(NULL)
 {
   assert((void *) &mData == (void *) &mData.dim);
   mData.pMethod = this;
@@ -47,6 +61,10 @@ CEulerMethod::~CEulerMethod()
   pdeletev(mpYd);
   pdeletev(mpY);
   pdeletev(interpolated); 
+  if (mRootsFound.array() != NULL)
+    {
+      delete [] mRootsFound.array();
+    }
 }
 
 void CEulerMethod::initializeParameter()
@@ -55,6 +73,8 @@ void CEulerMethod::initializeParameter()
   assertParameter("absolute tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000001);
   assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.0001);
   assertParameter("Maximal internal steps", CCopasiParameter::Type::INT, 1000000);
+
+  
 
 }
 
@@ -97,7 +117,23 @@ void CEulerMethod::start()
   // 8. Copy current state into local state vector
   memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
 
-  
+  //========Initialize Roots Related Arguments========
+  mNumRoot = mpContainer->getRoots().size();
+
+  if (mRootsFound.array() != NULL)
+    {
+      delete [] mRootsFound.array();
+    }
+
+  mRootsFound.initialize(mNumRoot, new C_INT[mNumRoot]);
+  mRootsA.resize(mNumRoot);
+  mRootsB.resize(mNumRoot);
+  mpRootValueNew = &mRootsA;
+  mpRootValueOld = &mRootsB;
+  mRootsNonZero.resize(mNumRoot);
+  mRootsNonZero = 0.0;
+  mLastRootTime = -std::numeric_limits< C_FLOAT64 >::infinity();
+  *mpRootValueOld = mpContainer->getRoots();
 }
 
 bool CEulerMethod::isValidProblem(const CCopasiProblem * pProblem)
@@ -175,13 +211,6 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   initial.state.assign(mpY, mpY + mData.dim);
   mHistoryinter.push_back(initial);
 
-  //evaluate the roots at the start (x1, y1)
-  const CVector< C_FLOAT64 >& rootsstart = mpContainer->getRoots();
-  TimeStatePair initialroot;
-  initialroot.time = *mpContainerStateTime;
-  initialroot.state.assign(rootsstart.array(), rootsstart.array() + rootsstart.size());
-  mHistoryrootsstart.push_back(initialroot);
-
 
   //the actual integration + stop if the internalsteps exceed the maximal step limit 
   while (*mpContainerStateTime < outputTime)
@@ -204,56 +233,6 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   //updating the state and the roots -> for root finding 
   mpContainer->updateSimulatedValues(false);
   mpContainer->updateRootValues(false);
-
-
-  //evaluate the roots at the interpolated time (x2, y2)
-  const CVector< C_FLOAT64 >& rootsinterpolated = mpContainer->getRoots(); //this is why we needed to update the roots previously 
-  TimeStatePair interpolatedroot;
-  interpolatedroot.time = *mpContainerStateTime;
-  interpolatedroot.state.assign(rootsinterpolated.array(), rootsinterpolated.array() + rootsinterpolated.size());
-  mHistoryrootsinterpolate.push_back(interpolatedroot);
-
-  //evaluate if the sign changed -> if yeah we have get the root  
-  std::vector<C_FLOAT64> rootTimes;
-
-  for (size_t i = 0; i < mHistoryrootsinterpolate.size(); ++i)
-  {
-    const TimeStatePair& x0 = mHistoryrootsstart[i];
-    const TimeStatePair& x1 = mHistoryrootsinterpolate[i];
-
-    for (size_t j = 0; j < x0.state.size(); ++j)
-    {
-      if (x0.state[j] * x1.state[j] < 0)
-      {
-       // calculate time for root 
-        C_FLOAT64 t_root = x0.time - x0.state[j] * ((x1.time - x0.time) / (x1.state[j] - x0.state[j]));
-
-        // save the rootvalue (time)
-        rootTimes.push_back(t_root);
-      }
-    }
-  }
-  if (!rootTimes.empty())
-  {
-    // find the first event (=smalles time point) with their index 
-    C_FLOAT64 minVal = *std::min_element(rootTimes.begin(), rootTimes.end());
-    size_t minIndex = std::distance(rootTimes.begin(), std::min_element(rootTimes.begin(), rootTimes.end()));
-
-
-    // std::vector<C_FLOAT64> interpolatedrootState = interpolateAttime(minVal);
-    // // //Update everything to the interpolated output 
-    // memcpy(mpContainerStateTime, interpolatedrootState.data(), mData.dim * sizeof(C_FLOAT64));
-    // memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
-    // *mpContainerStateTime = minVal;
-    // //updating the state and the roots -> for root finding 
-    //  mpContainer->updateSimulatedValues(false);
-    //  mpContainer->updateRootValues(false);
-    //  CMathUpdateSequence;
-    //  mpContainer->applyUpdateSequence(minIndex); 
-  }
-
-
-
   
   //clearing the mHistory for next steps 
   mHistoryrootsstart.clear(); 
@@ -324,6 +303,13 @@ bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
       *mpContainerStateTime = t_old + mStepsize;
       memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
       mpContainer->updateSimulatedValues(false);
+      mpContainer->updateRootValues(false);
+
+      if (checkRoots())
+        {
+          CCopasiMessage(CCopasiMessage::ERROR, "root is happening");
+        }
+
 
       TimeStatePair ts;
       ts.time = *mpContainerStateTime;
@@ -381,4 +367,43 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
   // should never happen 
   CCopasiMessage(CCopasiMessage::ERROR, MCTrajectoryMethod + 32);
   return {};
+}
+
+bool CEulerMethod::checkRoots()
+{
+  bool hasRoots = false;
+
+  // Swap old and new root values
+  CVector< C_FLOAT64 > * pTmp = mpRootValueOld;
+  mpRootValueOld = mpRootValueNew;
+  mpRootValueNew = pTmp;
+
+  *mpRootValueNew = mpContainer->getRoots();
+
+  //declare the important pointers 
+  C_FLOAT64 *pRootValueOld = mpRootValueOld->array();
+  C_FLOAT64 *pRootValueNew = mpRootValueNew->array();
+  C_FLOAT64 *pRootNonZero = mRootsNonZero.array();
+
+  C_INT *pRootFound = mRootsFound.array();
+  C_INT *pRootFoundEnd = pRootFound + mRootsFound.size();
+
+  //for every root - compare the old and new values 
+  for (; pRootFound != pRootFoundEnd; 
+       pRootValueOld++, pRootValueNew++, pRootFound++, pRootNonZero++)
+  {
+    if (*pRootValueOld * *pRootValueNew < 0.0 || //sign must have changed 
+        (*pRootValueNew == 0.0 && *pRootValueOld != 0.0)) //if new value is exactly 0 -> now event 
+    {
+      hasRoots = true;
+      *pRootFound = static_cast<C_INT>(CMath::RootToggleType::ToggleBoth);
+      *pRootNonZero = *pRootValueOld;
+    }
+    else
+    {
+      *pRootFound = static_cast<C_INT>(CMath::RootToggleType::NoToggle);
+    }
+  }
+
+  return hasRoots;
 }
