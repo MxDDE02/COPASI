@@ -114,13 +114,6 @@ bool CEulerMethod::isValidProblem(const CCopasiProblem * pProblem)
       CCopasiMessage(CCopasiMessage::ERROR, MCTrajectoryMethod + 9);
       return false;
     }
-
-  // check for ODEs - we need at least 1 
-  if (mpContainer->getCountODEs() > 0)
-    {
-      CCopasiMessage(CCopasiMessage::ERROR, MCTrajectoryMethod + 28);
-      return false;
-    }
   // check if the initial step size is positive 
   if (getValue< C_FLOAT64 >("initial step size") < 0)
     {
@@ -208,19 +201,21 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   memcpy(mpContainerStateTime, interpolatedState.data(), mData.dim * sizeof(C_FLOAT64));
   memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
   *mpContainerStateTime = outputTime;
-  //mpContainer->updateSimulatedValues(false);
+  //updating the state and the roots -> for root finding 
+  mpContainer->updateSimulatedValues(false);
   mpContainer->updateRootValues(false);
 
 
   //evaluate the roots at the interpolated time (x2, y2)
-  const CVector< C_FLOAT64 >& rootsinterpolated = mpContainer->getRoots();
+  const CVector< C_FLOAT64 >& rootsinterpolated = mpContainer->getRoots(); //this is why we needed to update the roots previously 
   TimeStatePair interpolatedroot;
   interpolatedroot.time = *mpContainerStateTime;
   interpolatedroot.state.assign(rootsinterpolated.array(), rootsinterpolated.array() + rootsinterpolated.size());
   mHistoryrootsinterpolate.push_back(interpolatedroot);
 
   //evaluate if the sign changed -> if yeah we have get the root  
-  std::vector<C_FLOAT64> roottime( mHistoryrootsinterpolate.size());
+  std::vector<C_FLOAT64> rootTimes;
+
   for (size_t i = 0; i < mHistoryrootsinterpolate.size(); ++i)
   {
     const TimeStatePair& x0 = mHistoryrootsstart[i];
@@ -230,24 +225,36 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
     {
       if (x0.state[j] * x1.state[j] < 0)
       {
-        //root finding 
-        roottime[i] = x0.time - x0.state[j] * ((x1.time - x0.time) / (x1.state[j] - x0.state[j]));
-        C_FLOAT64 Rtime = *std::min_element(roottime.begin(), roottime.end());
-        // get the state at the root time 
-        std::vector<C_FLOAT64> Rootstate = interpolateAttime(Rtime);
-        memcpy(mpContainerStateTime, Rootstate.data(), mData.dim * sizeof(C_FLOAT64));
-        memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
-        *mpContainerStateTime = Rtime;
-        mpContainer->updateSimulatedValues(false);
-        mpContainer->updateRootValues(false);
-        //now we have do apply the right event 
-        //mpContainer->applyUpdateSequence(); 
-      }
+       // Berechne Nullstelle (lineare Interpolation)
+        C_FLOAT64 t_root = x0.time - x0.state[j] * ((x1.time - x0.time) / (x1.state[j] - x0.state[j]));
 
+        // Speichere die Nullstelle
+        rootTimes.push_back(t_root);
+      }
     }
   }
-  
+  if (!rootTimes.empty())
+  {
+    // find the first event (=smalles time point) with their index 
+    C_FLOAT64 minVal = *std::min_element(rootTimes.begin(), rootTimes.end());
+    size_t minIndex = std::distance(rootTimes.begin(), std::min_element(rootTimes.begin(), rootTimes.end()));
 
+
+    // std::vector<C_FLOAT64> interpolatedrootState = interpolateAttime(minVal);
+    // // //Update everything to the interpolated output 
+    // memcpy(mpContainerStateTime, interpolatedrootState.data(), mData.dim * sizeof(C_FLOAT64));
+    // memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+    // *mpContainerStateTime = minVal;
+    // //updating the state and the roots -> for root finding 
+    //  mpContainer->updateSimulatedValues(false);
+    //  mpContainer->updateRootValues(false);
+    //  CMathUpdateSequence;
+    //  mpContainer->applyUpdateSequence(minIndex); 
+  }
+
+
+
+  
   //clearing the mHistory for next steps 
   mHistoryrootsstart.clear(); 
   mHistoryrootsinterpolate.clear(); 
@@ -315,7 +322,10 @@ bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
       TimeStatePair ts;
       ts.time = *mpContainerStateTime;
       ts.state.assign(mpY, mpY + mData.dim);
-      mHistoryinter.push_back(ts);
+      if(std::abs(ts.time - outputTime)<mStepsize)
+      {
+        mHistoryinter.push_back(ts);
+      }
 
       accepted = true; 
     }
