@@ -262,13 +262,7 @@ bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
     // == 2. full step ==
     for (int i = 0; i < mData.dim; ++i)
       fullstep[i] = y_original[i] + mStepsize * mpYd[i];
-    // == 2. full step ==
-    for (int i = 0; i < mData.dim; ++i)
-      fullstep[i] = y_original[i] + mStepsize * mpYd[i];
 
-    // == 3. first half step ==
-    for (int i = 0; i < mData.dim; ++i)
-      mpY[i] = y_original[i] + (mStepsize / 2.0) * mpYd[i];
     // == 3. first half step ==
     for (int i = 0; i < mData.dim; ++i)
       mpY[i] = y_original[i] + (mStepsize / 2.0) * mpYd[i];
@@ -307,10 +301,41 @@ bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
       if (checkRoots())
         {
-          CCopasiMessage(CCopasiMessage::ERROR, "root is happening");
+          C_FLOAT64 RootTime = findRoot(); 
+
+          if (RootTime > *mpContainerStateTime)
+            {
+              mStatus = NORMAL;
+            }
+
+          // if (mLastRootTime < RootTime)
+          //   {
+          //     //
+          //     mLastRootTime = RootTime;
+          //     *mpContainerStateTime = RootTime;
+          //     mpContainer->updateSimulatedValues(false); 
+          //     *mpRootValueNew = mpContainer->getRoots();
+
+          //     // // Mark the appropriate root
+          //     // C_INT * pRootFound = mRootsFound.array();
+          //     // C_INT * pRootFoundEnd = pRootFound + mNumRoot;
+          //     // C_FLOAT64 * pRootValue = mpRootValueNew->array();
+
+          //     // for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
+          //     //   if (*pRootValue == RootValue || *pRootValue == -RootValue)
+          //     //     {
+          //     //       *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
+          //     //     }
+          //     //   else
+          //     //     {
+          //     //       *pRootFound = static_cast< C_INT >(CMath::RootToggleType::NoToggle);
+          //     //     }
+
+          //     mStatus = ROOT;
+
+          //     return RootTime - startTime;
+          //   }
         }
-
-
       TimeStatePair ts;
       ts.time = *mpContainerStateTime;
       ts.state.assign(mpY, mpY + mData.dim);
@@ -320,7 +345,8 @@ bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
       }
 
       accepted = true; 
-    }
+      }
+  
     else
     {
       // step is not accepted -> stepsize will get reduced 
@@ -374,9 +400,9 @@ bool CEulerMethod::checkRoots()
   bool hasRoots = false;
 
   // Swap old and new root values
-  CVector< C_FLOAT64 > * pTmp = mpRootValueOld;
-  mpRootValueOld = mpRootValueNew;
-  mpRootValueNew = pTmp;
+  // CVector< C_FLOAT64 > * pTmp = mpRootValueOld;
+  // mpRootValueOld = mpRootValueNew;
+  // mpRootValueNew = pTmp;
 
   *mpRootValueNew = mpContainer->getRoots();
 
@@ -407,3 +433,32 @@ bool CEulerMethod::checkRoots()
 
   return hasRoots;
 }
+
+C_FLOAT64 CEulerMethod::findRoot()
+{
+  *mpRootValueNew = mpContainer->getRoots();
+
+  C_FLOAT64 *pRootValueOld = mpRootValueOld->array();
+  C_FLOAT64 *pRootValueNew = mpRootValueNew->array();
+
+  C_FLOAT64 oldtime = *mpContainerStateTime - mStepsize;
+  C_FLOAT64 newtime = *mpContainerStateTime;
+  CVector<C_FLOAT64> time (mNumRoot);  
+
+
+  for (size_t i = 0; i < mNumRoot; ++i)
+  {
+    C_FLOAT64 fOld = pRootValueOld[i];
+    C_FLOAT64 fNew = pRootValueNew[i];
+
+    time[i] = oldtime - fOld*((newtime-oldtime)/(fNew-fOld));
+    //time[i] = oldtime + (std::abs(fOld) / (std::abs(fOld) + std::abs(fNew))) * (newtime - oldtime);
+  }
+  C_FLOAT64 rootTime =*std::min_element(time.begin(), time.end());
+
+
+  return rootTime;  
+}
+
+
+
