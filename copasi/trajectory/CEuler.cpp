@@ -283,7 +283,13 @@ bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
     // == 2. full step ==
     for (int i = 0; i < mData.dim; ++i)
       fullstep[i] = y_original[i] + mStepsize * mpYd[i];
+    // == 2. full step ==
+    for (int i = 0; i < mData.dim; ++i)
+      fullstep[i] = y_original[i] + mStepsize * mpYd[i];
 
+    // == 3. first half step ==
+    for (int i = 0; i < mData.dim; ++i)
+      mpY[i] = y_original[i] + (mStepsize / 2.0) * mpYd[i];
     // == 3. first half step ==
     for (int i = 0; i < mData.dim; ++i)
       mpY[i] = y_original[i] + (mStepsize / 2.0) * mpYd[i];
