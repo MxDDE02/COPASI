@@ -242,7 +242,7 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
 }
 
 
-bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
+C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 {
   // Error calculation, until error is small 
   bool accepted = false;
@@ -293,28 +293,38 @@ bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
     {
       for (int i = 0; i < mData.dim; ++i)
         mpY[i] = fullstep[i];
-
+      
+      //this updates the math container to the new state - dont know if it is smart to do it here tbh
       *mpContainerStateTime = t_old + mStepsize;
       memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
       mpContainer->updateSimulatedValues(false);
       mpContainer->updateRootValues(false);
+      TimeStatePair ts;
+      ts.time = *mpContainerStateTime;
+      ts.state.assign(mpY, mpY + mData.dim);
+      mHistoryinter.push_back(ts);
 
       if (checkRoots())
+      {
+        C_FLOAT64 RootTime = findRoot(); 
+
+        if (RootTime > *mpContainerStateTime)
         {
-          C_FLOAT64 RootTime = findRoot(); 
+          mStatus = NORMAL;
+        }
 
-          if (RootTime > *mpContainerStateTime)
-            {
-              mStatus = NORMAL;
-            }
-
-          // if (mLastRootTime < RootTime)
-          //   {
-          //     //
-          //     mLastRootTime = RootTime;
-          //     *mpContainerStateTime = RootTime;
-          //     mpContainer->updateSimulatedValues(false); 
-          //     *mpRootValueNew = mpContainer->getRoots();
+        if (mLastRootTime < RootTime)
+        {
+          mLastRootTime = RootTime;
+          std::vector<C_FLOAT64> interpolatedRootstate = interpolateAttime(RootTime);
+          //Update everything to the interpolated output 
+          memcpy(mpContainerStateTime, interpolatedRootstate.data(), mData.dim * sizeof(C_FLOAT64));
+          memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+          *mpContainerStateTime = RootTime;
+          mpContainer->updateSimulatedValues(false); 
+          mpContainer->updateRootValues(false);
+        }
+          //      *mpRootValueNew = mpContainer->getRoots();
 
           //     // // Mark the appropriate root
           //     // C_INT * pRootFound = mRootsFound.array();
@@ -331,20 +341,14 @@ bool CEulerMethod::doOneStep(C_FLOAT64 startTime)
           //     //       *pRootFound = static_cast< C_INT >(CMath::RootToggleType::NoToggle);
           //     //     }
 
-          //     mStatus = ROOT;
+            //   mStatus = ROOT;
 
-          //     return RootTime - startTime;
-          //   }
-        }
-      TimeStatePair ts;
-      ts.time = *mpContainerStateTime;
-      ts.state.assign(mpY, mpY + mData.dim);
-      if(std::abs(ts.time - outputTime)<mStepsize)
-      {
-        mHistoryinter.push_back(ts);
+            //   return RootTime - startTime;
+            // }
       }
 
       accepted = true; 
+      return *mpContainerStateTime;
       }
   
     else
@@ -430,7 +434,6 @@ bool CEulerMethod::checkRoots()
       *pRootFound = static_cast<C_INT>(CMath::RootToggleType::NoToggle);
     }
   }
-
   return hasRoots;
 }
 
@@ -458,6 +461,7 @@ C_FLOAT64 CEulerMethod::findRoot()
 
 
   return rootTime;  
+  mpRootValueOld = mpRootValueNew;
 }
 
 

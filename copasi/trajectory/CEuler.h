@@ -68,7 +68,7 @@ public:
    * -> also adapts the stepsize according to the local error 
    * @param t  The time at which the euler step should start 
    */
-  bool doOneStep(C_FLOAT64 startTime);
+  C_FLOAT64 doOneStep(C_FLOAT64 startTime);
 
    /**
   * Check if the method is suitable for this problem
