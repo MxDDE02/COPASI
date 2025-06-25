@@ -316,7 +316,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
       if (checkRoots())
       {
-        C_FLOAT64 RootTime = findRoot(); 
+        C_FLOAT64 RootTime = findRoot(startTime); 
         C_FLOAT64 RootValue = 0;
 
 
@@ -325,12 +325,12 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
           mStatus = NORMAL;
         }
 
-        if (fabs(RootTime -mLastRootTime) < Tolerance)
+        else if (fabs(RootTime -mLastRootTime) < Tolerance)
         {
           mStatus = NORMAL;
         }
 
-        if (mLastRootTime < RootTime)
+        else if (mLastRootTime < RootTime)
         {
           mLastRootTime = RootTime;
           std::vector<C_FLOAT64> interpolatedRootstate = interpolateAttime(RootTime);
@@ -468,7 +468,7 @@ bool CEulerMethod::checkRoots()
   return hasRoots;
 }
 
-C_FLOAT64 CEulerMethod::findRoot()
+C_FLOAT64 CEulerMethod::findRoot(double t)
 {
   C_FLOAT64 *pRootValueOld = mpRootValueOld->array();
   C_FLOAT64 *pRootValueNew = mpRootValueNew->array();
@@ -476,13 +476,16 @@ C_FLOAT64 CEulerMethod::findRoot()
   C_FLOAT64 oldtime = *mpContainerStateTime - mStepsize;
   C_FLOAT64 newtime = *mpContainerStateTime;
   CVector<C_FLOAT64> time (mNumRoot);  
+  time =std::numeric_limits<double>::infinity();
 
   for (size_t i = 0; i < mNumRoot; ++i)
   {
     C_FLOAT64 fOld = pRootValueOld[i];
     C_FLOAT64 fNew = pRootValueNew[i];
-    
-    time[i] = oldtime - fOld * ((newtime - oldtime) / (fNew - fOld));
+
+    double t2 = oldtime - fOld * ((newtime - oldtime) / (fNew - fOld));
+    if (t < t2)
+    time[i] = t2;
     //time[i] = oldtime + (std::abs(fOld) / (std::abs(fOld) + std::abs(fNew))) * (newtime - oldtime);
   }
   C_FLOAT64 rootTime =*std::min_element(time.begin(), time.end());

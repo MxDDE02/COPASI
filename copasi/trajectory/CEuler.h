@@ -111,7 +111,7 @@ protected:
    */
   void initializeParameter();
 
-  C_FLOAT64 findRoot();
+  C_FLOAT64 findRoot(double t);
 
   /**
    * The status of the integrator
