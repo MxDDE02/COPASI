@@ -189,20 +189,23 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
   return;
 }
 
-void CEulerMethod::evalR(const C_FLOAT64 * t, const C_FLOAT64 *  /* y */,
-                          const C_INT *  nr, C_FLOAT64 * r)
-{
-  *mpContainerStateTime = *t;
-  mpContainer->updateRootValues(*mpReducedModel);
+// void CEulerMethod::evalR(const C_FLOAT64 * t, const C_FLOAT64 *  /* y */,
+//                           const C_INT *  nr, C_FLOAT64 * r)
+// {
+//   *mpContainerStateTime = *t;
+//   mpContainer->updateRootValues(*mpReducedModel);
 
-  CVectorCore< C_FLOAT64 > RootValues(*nr, r);
-  RootValues = mpContainer->getRoots();
-};
+//   CVectorCore< C_FLOAT64 > RootValues(*nr, r);
+//   RootValues = mpContainer->getRoots();
+// };
 
 CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool & /* final */)
 {
-  // set the inital parameters 
   outputTime = *mpContainerStateTime + deltaT;
+  memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+  mpContainer->updateSimulatedValues(false);
+  mpContainer->updateRootValues(false);
+  *mpRootValueOld = mpContainer->getRoots();
   int internalsteps = 0; 
 
   //Saving of the initial Math-Container in the mHistory - for interpolation
@@ -210,7 +213,6 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   initial.time = *mpContainerStateTime;
   initial.state.assign(mpY, mpY + mData.dim);
   mHistoryinter.push_back(initial);
-
 
   //the actual integration + stop if the internalsteps exceed the maximal step limit 
   while (*mpContainerStateTime < outputTime)
@@ -222,6 +224,13 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
      CCopasiMessage(CCopasiMessage::ERROR, MCTrajectoryMethod + 12);
      return FAILURE; 
     }
+    if (mStatus == ROOT )//||
+          //(mNumRoot > 0 && checkRoots()))
+        {
+          //clearing the mHistory for next steps 
+          mHistoryinter.clear();
+          return ROOT;
+        }
   } 
   
   //Interpolation -> get the Trajectory Problem defined state at the requested time 
@@ -235,8 +244,6 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   mpContainer->updateRootValues(false);
   
   //clearing the mHistory for next steps 
-  mHistoryrootsstart.clear(); 
-  mHistoryrootsinterpolate.clear(); 
   mHistoryinter.clear();
   return NORMAL;
 }
@@ -303,12 +310,22 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       ts.time = *mpContainerStateTime;
       ts.state.assign(mpY, mpY + mData.dim);
       mHistoryinter.push_back(ts);
+      accepted = true; 
+
+      C_FLOAT64 Tolerance = 100.0 * (fabs(outputTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
 
       if (checkRoots())
       {
         C_FLOAT64 RootTime = findRoot(); 
+        C_FLOAT64 RootValue = 0;
 
-        if (RootTime > *mpContainerStateTime)
+
+        if (RootTime > outputTime)
+        {
+          mStatus = NORMAL;
+        }
+
+        if (fabs(RootTime -mLastRootTime) < Tolerance)
         {
           mStatus = NORMAL;
         }
@@ -323,33 +340,33 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
           *mpContainerStateTime = RootTime;
           mpContainer->updateSimulatedValues(false); 
           mpContainer->updateRootValues(false);
+          *mpRootValueNew = mpContainer->getRoots();
+
+          // Mark the appropriate root
+          C_INT * pRootFound = mRootsFound.array();
+          C_INT * pRootFoundEnd = pRootFound + mNumRoot;
+          C_FLOAT64 * pRootValue = mpRootValueNew->array();
+
+          for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
+            if (*pRootValue == RootValue || *pRootValue == -RootValue)
+              {
+                *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
+              }
+            else
+              {
+                *pRootFound = static_cast< C_INT >(CMath::RootToggleType::NoToggle);
+              }
+
+          mStatus = ROOT;
         }
-          //      *mpRootValueNew = mpContainer->getRoots();
-
-          //     // // Mark the appropriate root
-          //     // C_INT * pRootFound = mRootsFound.array();
-          //     // C_INT * pRootFoundEnd = pRootFound + mNumRoot;
-          //     // C_FLOAT64 * pRootValue = mpRootValueNew->array();
-
-          //     // for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
-          //     //   if (*pRootValue == RootValue || *pRootValue == -RootValue)
-          //     //     {
-          //     //       *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
-          //     //     }
-          //     //   else
-          //     //     {
-          //     //       *pRootFound = static_cast< C_INT >(CMath::RootToggleType::NoToggle);
-          //     //     }
-
-            //   mStatus = ROOT;
-
-            //   return RootTime - startTime;
-            // }
+        return RootTime - startTime;
       }
-
-      accepted = true; 
-      return *mpContainerStateTime;
+      else 
+      {
+        mStatus = NORMAL; 
+        return *mpContainerStateTime;
       }
+    }
   
     else
     {
@@ -427,8 +444,22 @@ bool CEulerMethod::checkRoots()
     {
       hasRoots = true;
       *pRootFound = static_cast<C_INT>(CMath::RootToggleType::ToggleBoth);
-      *pRootNonZero = *pRootValueOld;
+      //*pRootNonZero = *pRootValueOld;
     }
+    else if (*pRootValueNew == 0.0 &&
+               *pRootValueOld != 0.0)
+        {
+          hasRoots = true;
+          *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleEquality); // toggle only equality
+          *pRootNonZero = *pRootValueOld;
+        }
+      else if (*pRootValueNew != 0.0 &&
+               *pRootValueOld == 0.0 &&
+               *pRootValueNew **pRootNonZero < 0.0)
+        {
+          hasRoots = true;
+          *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleInequality); // toggle only inequality
+        }
     else
     {
       *pRootFound = static_cast<C_INT>(CMath::RootToggleType::NoToggle);
@@ -439,8 +470,6 @@ bool CEulerMethod::checkRoots()
 
 C_FLOAT64 CEulerMethod::findRoot()
 {
-  *mpRootValueNew = mpContainer->getRoots();
-
   C_FLOAT64 *pRootValueOld = mpRootValueOld->array();
   C_FLOAT64 *pRootValueNew = mpRootValueNew->array();
 
@@ -448,20 +477,18 @@ C_FLOAT64 CEulerMethod::findRoot()
   C_FLOAT64 newtime = *mpContainerStateTime;
   CVector<C_FLOAT64> time (mNumRoot);  
 
-
   for (size_t i = 0; i < mNumRoot; ++i)
   {
     C_FLOAT64 fOld = pRootValueOld[i];
     C_FLOAT64 fNew = pRootValueNew[i];
-
-    time[i] = oldtime - fOld*((newtime-oldtime)/(fNew-fOld));
+    
+    time[i] = oldtime - fOld * ((newtime - oldtime) / (fNew - fOld));
     //time[i] = oldtime + (std::abs(fOld) / (std::abs(fOld) + std::abs(fNew))) * (newtime - oldtime);
   }
   C_FLOAT64 rootTime =*std::min_element(time.begin(), time.end());
 
-
-  return rootTime;  
-  mpRootValueOld = mpRootValueNew;
+  //mpRootValueOld = mpRootValueNew;
+  return rootTime; 
 }
 
 

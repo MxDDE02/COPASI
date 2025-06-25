@@ -98,7 +98,7 @@ public:
 /**
    *  This evaluates the events 
    */
-  virtual void evalR(const C_FLOAT64 * t, const C_FLOAT64 * y, const C_INT * nr, C_FLOAT64 * r);
+  //virtual void evalR(const C_FLOAT64 * t, const C_FLOAT64 * y, const C_INT * nr, C_FLOAT64 * r);
 
 
 
