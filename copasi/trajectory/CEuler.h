@@ -105,13 +105,15 @@ public:
 
 protected:
   /**
-   * Function to initialize parameters. 
-   * Just determines the step size used for the Euler Method. 
-   * The default is 0.01.
+   * Function to initialize parameters.
    */
   void initializeParameter();
 
-C_FLOAT64 findRoot(double startTime, double &t, double &f);
+  /**
+   * Function to retrieve the roots from a certain interval (endTime - startTime)
+   * returns the time of the first root of that innterval such as its state 
+   */
+C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f);
 
   /**
    * The status of the integrator
@@ -210,6 +212,5 @@ private:
     * This is used for linear interpolation to obtain the state at arbitrary times.
     */
   std::vector<TimeStatePair> mHistoryinter;
-  std::vector<TimeStatePair> mHistoryrootsstart;
-  std::vector<TimeStatePair> mHistoryrootsinterpolate;
+
 };
