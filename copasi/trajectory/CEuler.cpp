@@ -252,6 +252,7 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
 C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 {
   // Error calculation, until error is small 
+  *mpRootValueOld = mpContainer->getRoots();
   bool accepted = false;
   while (!accepted)
   {
@@ -284,6 +285,8 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     // == 4. second half step ==
     for (int i = 0; i < mData.dim; ++i)
       halfstep[i] = mpY[i] + (mStepsize / 2.0) * mpYd[i];
+    
+    *mpContainerStateTime = t_old + mStepsize / 2.0;
 
     // == 5. error estimation ==
     C_FLOAT64 localerror = 0.0;
@@ -302,7 +305,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         mpY[i] = fullstep[i];
       
       //this updates the math container to the new state - dont know if it is smart to do it here tbh
-      *mpContainerStateTime = t_old + mStepsize;
+      //*mpContainerStateTime = t_old + mStepsize;
       memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
       mpContainer->updateSimulatedValues(false);
       mpContainer->updateRootValues(false);
@@ -316,8 +319,11 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
       if (checkRoots())
       {
-        C_FLOAT64 RootTime = findRoot(startTime); 
-        C_FLOAT64 RootValue = 0;
+        C_FLOAT64 t; 
+        C_FLOAT64 f;
+        findRoot(startTime, t, f); 
+        C_FLOAT64 RootValue = f; 
+        C_FLOAT64 RootTime = t; 
 
 
         if (RootTime > outputTime)
@@ -396,9 +402,10 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
     return {}; 
   }
 
-  for (size_t i = 1; i < mHistoryinter.size(); ++i)
+  for (size_t i = 0; i < mHistoryinter.size(); ++i)
   {
-    if (mHistoryinter[i].time >= t)
+    C_FLOAT64 timecheck = mHistoryinter[i].time;
+    if (timecheck >= t)
     {
       const TimeStatePair& p0 = mHistoryinter[i - 1];
       const TimeStatePair& p1 = mHistoryinter[i];
@@ -470,15 +477,20 @@ bool CEulerMethod::checkRoots()
   return hasRoots;
 }
 
-C_FLOAT64 CEulerMethod::findRoot(double t)
+C_FLOAT64 CEulerMethod::findRoot(double startTime, double &t, double &f)
 {
   C_FLOAT64 *pRootValueOld = mpRootValueOld->array();
   C_FLOAT64 *pRootValueNew = mpRootValueNew->array();
 
-  C_FLOAT64 oldtime = *mpContainerStateTime - mStepsize;
+  C_FLOAT64 oldtime = startTime;
   C_FLOAT64 newtime = *mpContainerStateTime;
   CVector<C_FLOAT64> time (mNumRoot);  
+  CVector<C_FLOAT64> oldroot (mNumRoot);  
+  CVector<C_FLOAT64> newroot (mNumRoot);  
   time =std::numeric_limits<double>::infinity();
+  oldroot = std::numeric_limits<double>::infinity();
+  newroot =std::numeric_limits<double>::infinity();
+
 
   for (size_t i = 0; i < mNumRoot; ++i)
   {
@@ -489,13 +501,25 @@ C_FLOAT64 CEulerMethod::findRoot(double t)
       double t2 = oldtime - fOld * ((newtime - oldtime) / (fNew - fOld));
       if (t < t2 && t2 > mLastRootTime)
       time[i] = t2;
+      oldroot[i] = fOld;  
+      newroot[i] = fNew;  
     }
   }
-  C_FLOAT64 rootTime =*std::min_element(time.begin(), time.end());
+  //C_FLOAT64 rootTime =*std::min_element(time.begin(), time.end());
+  auto minIt = std::min_element(time.begin(), time.end());
+  size_t rootIndex = std::distance(time.begin(), minIt);
+  t = *minIt;
+  C_FLOAT64 fOldAtRoot = oldroot[rootIndex];
+  C_FLOAT64 fNewAtRoot = newroot[rootIndex];
+
+  f = fOldAtRoot + ((t - oldtime) / (newtime - oldtime)) * (fNewAtRoot - fOldAtRoot);
 
   //mpRootValueOld = mpRootValueNew;
-  return rootTime; 
+  return t; 
+  return f;
 }
+
+
 
 
 
