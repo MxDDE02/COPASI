@@ -347,8 +347,10 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
           C_INT * pRootFoundEnd = pRootFound + mNumRoot;
           C_FLOAT64 * pRootValue = mpRootValueNew->array();
 
+          Tolerance = 100.0 * (fabs(outputTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+
           for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
-            if (*pRootValue == RootValue || *pRootValue == -RootValue)
+            if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance)
               {
                 *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
               }
@@ -444,7 +446,7 @@ bool CEulerMethod::checkRoots()
     {
       hasRoots = true;
       *pRootFound = static_cast<C_INT>(CMath::RootToggleType::ToggleBoth);
-      //*pRootNonZero = *pRootValueOld;
+      *pRootNonZero = *pRootValueOld;
     }
     else if (*pRootValueNew == 0.0 &&
                *pRootValueOld != 0.0)
@@ -482,11 +484,12 @@ C_FLOAT64 CEulerMethod::findRoot(double t)
   {
     C_FLOAT64 fOld = pRootValueOld[i];
     C_FLOAT64 fNew = pRootValueNew[i];
-
-    double t2 = oldtime - fOld * ((newtime - oldtime) / (fNew - fOld));
-    if (t < t2)
-    time[i] = t2;
-    //time[i] = oldtime + (std::abs(fOld) / (std::abs(fOld) + std::abs(fNew))) * (newtime - oldtime);
+    if(fNew*fOld <= 0)
+    {
+      double t2 = oldtime - fOld * ((newtime - oldtime) / (fNew - fOld));
+      if (t < t2 && t2 > mLastRootTime)
+      time[i] = t2;
+    }
   }
   C_FLOAT64 rootTime =*std::min_element(time.begin(), time.end());
 
