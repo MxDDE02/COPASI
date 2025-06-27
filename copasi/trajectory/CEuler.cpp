@@ -250,8 +250,12 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
 C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 {
   //precaution of the step
+  mpContainer->updateSimulatedValues(false);
+  mpContainer->updateRootValues(false);
   *mpRootValueOld = mpContainer->getRoots();
+  bool stepreject = false; 
   bool accepted = false;
+  //step calculation 
   while (!accepted)
   {
     //making copies of the original state + vector allocation
@@ -298,7 +302,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     localerror = localerror/(mData.dim-1); 
 
     // == 6. decition if step can be accepted ==
-    if (localerror <= 1.0)
+  if (localerror <= 1.0)
     {
       for (int i = 0; i < mData.dim; ++i)
         mpY[i] = fullstep[i];
@@ -316,6 +320,11 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       mHistoryinter.push_back(ts);
 
       accepted = true; 
+
+      if(!stepreject) //previous step accepted - now we can make the step bigger 
+      {
+        mStepsize *= std::sqrt(1 / localerror); 
+      }
     
       C_FLOAT64 Tolerance = 100.0 * (fabs(outputTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
 
@@ -374,20 +383,22 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         }
         return RootTime - startTime;
       }
-      else 
+    else 
       {
         mStatus = NORMAL; 
         return *mpContainerStateTime;
       }
     }
   
-    else
+  else
     {
       // step is not accepted -> stepsize will get reduced 
-      mStepsize = mStepsize * std::sqrt(euler_rtolerance / localerror); 
+      //mStepsize = mStepsize * std::sqrt(euler_rtolerance / localerror); 
+      mStepsize = mStepsize * std::sqrt(1 / localerror); 
       //bring back original state
       memcpy(mpY, y_original.data(), mData.dim * sizeof(C_FLOAT64));
       *mpContainerStateTime = t_old;
+      stepreject = true;
       // if the stepsize is small so that Euler just takes ages - the intervalsteplimit takes care of that 
     }
   }
@@ -491,7 +502,7 @@ C_FLOAT64 CEulerMethod::findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT
   C_FLOAT64 *pRootValueOld = mpRootValueOld->array();
   C_FLOAT64 *pRootValueNew = mpRootValueNew->array();
   C_FLOAT64 oldtime = startTime;
-  C_FLOAT64 newtime = *mpContainerStateTime;
+  C_FLOAT64 newtime = endTime;
   CVector<C_FLOAT64> time (mNumRoot);  
   CVector<C_FLOAT64> oldroot (mNumRoot);  
   CVector<C_FLOAT64> newroot (mNumRoot);  
