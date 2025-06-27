@@ -187,15 +187,6 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
   return;
 }
 
-// void CEulerMethod::evalR(const C_FLOAT64 * t, const C_FLOAT64 *  /* y */,
-//                           const C_INT *  nr, C_FLOAT64 * r)
-// {
-//   *mpContainerStateTime = *t;
-//   mpContainer->updateRootValues(*mpReducedModel);
-
-//   CVectorCore< C_FLOAT64 > RootValues(*nr, r);
-//   RootValues = mpContainer->getRoots();
-// };
 
 CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool & /* final */)
 {
@@ -323,7 +314,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
       if(!stepreject) //previous step accepted - now we can make the step bigger 
       {
-        mStepsize *= std::sqrt(1 / localerror); 
+        mStepsize *= std::sqrt(0.9 / localerror); 
       }
     
       C_FLOAT64 Tolerance = 100.0 * (fabs(outputTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
@@ -394,7 +385,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     {
       // step is not accepted -> stepsize will get reduced 
       //mStepsize = mStepsize * std::sqrt(euler_rtolerance / localerror); 
-      mStepsize = mStepsize * std::sqrt(1 / localerror); 
+      mStepsize = mStepsize * std::sqrt(0.9 / localerror); 
       //bring back original state
       memcpy(mpY, y_original.data(), mData.dim * sizeof(C_FLOAT64));
       *mpContainerStateTime = t_old;

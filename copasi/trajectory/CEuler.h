@@ -113,7 +113,7 @@ protected:
    * Function to retrieve the roots from a certain interval (endTime - startTime)
    * returns the time of the first root of that innterval such as its state 
    */
-C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f);
+  C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f);
 
   /**
    * The status of the integrator
