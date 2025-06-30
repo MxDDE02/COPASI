@@ -5,11 +5,6 @@
 class CEulerMethod : public CTrajectoryMethod
 {
 public:
-  struct Data
-  {
-    size_t dim;
-    CEulerMethod * pMethod;
-  };
   /**
    *  Struct to safe each intermediate step of the euler method
    */
@@ -173,12 +168,6 @@ private:
    */
   int steplimit; 
   
-  /**
-   * mData.dim is the dimension of the ODE system. 
-   * It is used to determine the size of the state vector
-   */
-  Data mData;
-
     /**
    * Pointer to the array with left hand side values of the math container (=state vector).
    * => time and concentration of the species 
@@ -212,5 +201,7 @@ private:
     * This is used for linear interpolation to obtain the state at arbitrary times.
     */
   std::vector<TimeStatePair> mHistoryinter;
+
+  C_INT mdimension; 
 
 };

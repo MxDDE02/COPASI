@@ -17,7 +17,7 @@ CEulerMethod::CEulerMethod(const CDataContainer * pParent,
                            const CTaskEnum::Method & methodType,
                            const CTaskEnum::Task & taskType): 
 CTrajectoryMethod(pParent, methodType, taskType),
-mData(), 
+mdimension(), 
 mpY(NULL), 
 mpYdot(NULL),
 mpYd(NULL), 
@@ -31,15 +31,13 @@ mpRootValueNew(NULL),
 mLastRootTime(-std::numeric_limits< C_FLOAT64 >::infinity())
 
 {
-  assert((void *) &mData == (void *) &mData.dim);
-  mData.pMethod = this;
   initializeParameter();
 }
 
 CEulerMethod::CEulerMethod(const CEulerMethod & src,
                            const CDataContainer * pParent): 
 CTrajectoryMethod(src, pParent),
-mData(), 
+mdimension(), 
 mpY(NULL), 
 mpYdot(NULL), 
 mpYd(NULL), 
@@ -51,8 +49,6 @@ mRootsNonZero(src.mRootsNonZero),
 mpRootValueOld(NULL),
 mpRootValueNew(NULL)
 {
-  assert((void *) &mData == (void *) &mData.dim);
-  mData.pMethod = this;
   initializeParameter();
 }
 
@@ -91,8 +87,8 @@ void CEulerMethod::start()
   // 2. Retrieve the trajectory problem for duration and step size
   const CTrajectoryProblem * pTP = static_cast<const CTrajectoryProblem *>(mpProblem);
 
-  // 3. Determine the dimension of the system (excluding fixed event targets)
-  mData.dim = (C_INT)(mContainerState.size() - mpContainer->getCountFixedEventTargets());
+  // 3. Determine the mdimension of the system (excluding fixed event targets)
+  mdimension = mContainerState.size() - mpContainer->getCountFixedEventTargets(); 
 
   // 4. Get pointer to rate vector (excluding fixed event targets)
   mpYdot = mpContainer->getRate(*mpReducedModel).array() + mpContainer->getCountFixedEventTargets();
@@ -105,15 +101,15 @@ void CEulerMethod::start()
   steplimit = getValue< int >("Maximal internal steps");
 
   // 7. Allocate memory 
-  mpY = new C_FLOAT64[mData.dim];
-  mpYd = new C_FLOAT64[mData.dim];
-  interpolated = new C_FLOAT64[mData.dim];
+  mpY = new C_FLOAT64[mdimension];
+  mpYd = new C_FLOAT64[mdimension];
+  interpolated = new C_FLOAT64[mdimension];
 
   // set outputime (to zero)
   outputTime = *mpContainerStateTime;
 
   // 8. Copy current state into local state vector
-  memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+  memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
 
   //========Initialize Roots Related Arguments========
   mNumRoot = mpContainer->getRoots().size();
@@ -168,21 +164,21 @@ void CEulerMethod::EvalF(const C_INT * n, const C_FLOAT64 * t, const C_FLOAT64 *
 void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot)
 {
   //The comments just make a backup version of the current mpContainerStateTime 
-  CVector< C_FLOAT64 > yTemp(mData.dim);
-  memcpy(yTemp.array(), mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+  CVector< C_FLOAT64 > yTemp(mdimension);
+  memcpy(yTemp.array(), mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
 
   if (y != mpContainerStateTime)
-    memcpy(mpContainerStateTime, y, mData.dim * sizeof(C_FLOAT64));
+    memcpy(mpContainerStateTime, y, mdimension * sizeof(C_FLOAT64));
   //this does the actual evaluation and puts it into ydot 
   mpContainer->updateSimulatedValues(*mpReducedModel);
-  memcpy(ydot, mpYdot, mData.dim * sizeof(C_FLOAT64));
+  memcpy(ydot, mpYdot, mdimension * sizeof(C_FLOAT64));
 //this is old debugging 
 #ifdef DEBUG_NUMERICS
   std::cout << "State:     " << mpContainer->getState(false) << std::endl;
   std::cout << "Rate:      " << mpContainer->getRate(false) << std::endl;
 #endif // DEBUG_NUMERICS
 //retreave the old value 
-  memcpy(mpContainerStateTime, yTemp.array(), mData.dim * sizeof(C_FLOAT64));
+  memcpy(mpContainerStateTime, yTemp.array(), mdimension * sizeof(C_FLOAT64));
 
   return;
 }
@@ -191,7 +187,7 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
 CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool & /* final */)
 {
   outputTime = *mpContainerStateTime + deltaT;
-  memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+  memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
   mpContainer->updateSimulatedValues(false);
   mpContainer->updateRootValues(false);
   *mpRootValueOld = mpContainer->getRoots();
@@ -200,7 +196,7 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   //Saving of the initial Math-Container in the mHistory - for interpolation
   TimeStatePair initial;
   initial.time = *mpContainerStateTime;
-  initial.state.assign(mpY, mpY + mData.dim);
+  initial.state.assign(mpY, mpY + mdimension);
   mHistoryinter.push_back(initial);
 
   //the actual integration + stop if the internalsteps exceed the maximal step limit 
@@ -225,8 +221,8 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   //Interpolation -> get the Trajectory Problem defined state at the requested time 
   std::vector<C_FLOAT64> interpolatedState = interpolateAttime(outputTime);
   //Update everything to the interpolated output 
-  memcpy(mpContainerStateTime, interpolatedState.data(), mData.dim * sizeof(C_FLOAT64));
-  memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+  memcpy(mpContainerStateTime, interpolatedState.data(), mdimension * sizeof(C_FLOAT64));
+  memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
   *mpContainerStateTime = outputTime;
   //updating the state and the roots -> for root finding 
   mpContainer->updateSimulatedValues(false);
@@ -250,34 +246,34 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
   while (!accepted)
   {
     //making copies of the original state + vector allocation
-    std::vector<C_FLOAT64> y_original(mpY, mpY + mData.dim);
+    std::vector<C_FLOAT64> y_original(mpY, mpY + mdimension);
     C_FLOAT64 t_old = *mpContainerStateTime;
 
-    std::vector<C_FLOAT64> fullstep(mData.dim);
-    std::vector<C_FLOAT64> halfstep(mData.dim);
-    std::vector<C_FLOAT64> deltaerror(mData.dim);
-    std::vector<C_FLOAT64> scale(mData.dim);
+    std::vector<C_FLOAT64> fullstep(mdimension);
+    std::vector<C_FLOAT64> halfstep(mdimension);
+    std::vector<C_FLOAT64> deltaerror(mdimension);
+    std::vector<C_FLOAT64> scale(mdimension);
 
     // == 1. calculate rates ==
     evalF(mpContainerStateTime, mpY, mpYd);
 
     // == 2. full step ==
-    for (int i = 0; i < mData.dim; ++i)
+    for (int i = 0; i < mdimension; ++i)
       fullstep[i] = y_original[i] + mStepsize * mpYd[i];
 
     // == 3. first half step ==
-    for (int i = 0; i < mData.dim; ++i)
+    for (int i = 0; i < mdimension; ++i)
       mpY[i] = y_original[i] + (mStepsize / 2.0) * mpYd[i];
 
     *mpContainerStateTime = t_old + mStepsize / 2.0;
 
     evalF(mpContainerStateTime, mpY, mpYd);
-    // memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
+    // memcpy(mpContainerStateTime, mpY, mdimension * sizeof(C_FLOAT64));
     // mpContainer->updateSimulatedValues(false);
-    // memcpy(yd_temp.data(), mpYdot, mData.dim * sizeof(C_FLOAT64));
+    // memcpy(yd_temp.data(), mpYdot, mdimension * sizeof(C_FLOAT64));
 
     // == 4. second half step ==
-    for (int i = 0; i < mData.dim; ++i)
+    for (int i = 0; i < mdimension; ++i)
       halfstep[i] = mpY[i] + (mStepsize / 2.0) * mpYd[i];
     
     //*mpContainerStateTime = t_old + mStepsize / 2.0;
@@ -293,13 +289,13 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     C_FLOAT64 errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
     // Set beta to a nonzero value for PI control. Set beta to 0.04 or 0.08 for a good default
 
-    for (int i = 1; i < mData.dim; ++i)
+    for (int i = 1; i < mdimension; ++i)
     {
       deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
       scale[i] = euler_atolerance + std::max(std::abs(y_original[i]), std::abs(fullstep[i])) * euler_rtolerance;
       localerror += std::abs(deltaerror[i] / scale[i]);
     }
-    localerror = localerror/(mData.dim-1); 
+    localerror = localerror/(mdimension-1); 
     
 
     // == 6. decition if step can be accepted ==
@@ -331,19 +327,19 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         stepreject =false; 
       }
 
-      for (int i = 0; i < mData.dim; ++i)
+      for (int i = 0; i < mdimension; ++i)
         mpY[i] = fullstep[i];
       
       //this updates the math container to the new state 
       *mpContainerStateTime = t_old + mStepsize;
-      memcpy(mpContainerStateTime, mpY, mData.dim * sizeof(C_FLOAT64));
+      memcpy(mpContainerStateTime, mpY, mdimension * sizeof(C_FLOAT64));
       mpContainer->updateSimulatedValues(false);
       mpContainer->updateRootValues(false);
 
       //saving the intermediate state for interpolation
       TimeStatePair ts;
       ts.time = *mpContainerStateTime;
-      ts.state.assign(mpY, mpY + mData.dim);
+      ts.state.assign(mpY, mpY + mdimension);
       mHistoryinter.push_back(ts);
 
       accepted = true;
@@ -375,8 +371,8 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
           mLastRootTime = RootTime;
           //Update everything to the interpolated output 
           std::vector<C_FLOAT64> interpolatedRootstate = interpolateAttime(RootTime);
-          memcpy(mpContainerStateTime, interpolatedRootstate.data(), mData.dim * sizeof(C_FLOAT64));
-          memcpy(mpY, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+          memcpy(mpContainerStateTime, interpolatedRootstate.data(), mdimension * sizeof(C_FLOAT64));
+          memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
           *mpContainerStateTime = RootTime;
           mpContainer->updateSimulatedValues(false); 
           mpContainer->updateRootValues(false);
@@ -420,7 +416,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       hscale = std::max(safe*pow(localerror, -alpha), minhscale);
       mStepsize *= hscale;
       //bring back original state
-      memcpy(mpY, y_original.data(), mData.dim * sizeof(C_FLOAT64));
+      memcpy(mpY, y_original.data(), mdimension * sizeof(C_FLOAT64));
       *mpContainerStateTime = t_old;
       stepreject = true;
       // if the stepsize is small so that Euler just takes ages - the intervalsteplimit takes care of that 
@@ -453,13 +449,13 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
       const TimeStatePair& p0 = mHistoryinter[i - 1];
       const TimeStatePair& p1 = mHistoryinter[i];
       //linear interpolation 
-      for (int j = 0; j < mData.dim; ++j)
+      for (int j = 0; j < mdimension; ++j)
       {
         interpolated[j] = p0.state[j] + ((t - p0.time) / (p1.time - p0.time)) * (p1.state[j] - p0.state[j]);
       }
 
       // retun: the vector of the interpolated state
-      return std::vector<C_FLOAT64>(interpolated, interpolated + mData.dim);
+      return std::vector<C_FLOAT64>(interpolated, interpolated + mdimension);
     }
   }
 
