@@ -284,6 +284,15 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
     // == 5. error estimation ==
     C_FLOAT64 localerror = 0.0;
+    C_FLOAT64 hscale; 
+    C_FLOAT64 beta = 0.0;
+    C_FLOAT64 alpha = 0.5 - beta * 0.75; 
+    C_FLOAT64 safe = 0.9; 
+    C_FLOAT64 minhscale = 0.2; 
+    C_FLOAT64 maxhscale = 10.0; 
+    C_FLOAT64 errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
+    // Set beta to a nonzero value for PI control. Set beta to 0.04 or 0.08 for a good default
+
     for (int i = 1; i < mData.dim; ++i)
     {
       deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
@@ -291,10 +300,37 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       localerror += std::abs(deltaerror[i] / scale[i]);
     }
     localerror = localerror/(mData.dim-1); 
+    
 
     // == 6. decition if step can be accepted ==
   if (localerror <= 1.0)
     {
+      if(localerror == 0.0)
+      {
+        hscale = maxhscale; 
+      }
+      else
+      {
+        hscale = safe * pow(localerror,-alpha)*pow(errorold, beta);
+        if(hscale<minhscale){
+          hscale = minhscale;
+        }
+        if(hscale>maxhscale){
+          hscale = maxhscale; 
+        }
+      }
+
+      if(stepreject) //previous step was not accepted
+      {
+        mStepsize *= std::min(hscale, 1.0);
+      }
+      else
+      {
+        mStepsize *= hscale; 
+        errorold = std::max(localerror, 1.0e-04); 
+        stepreject =false; 
+      }
+
       for (int i = 0; i < mData.dim; ++i)
         mpY[i] = fullstep[i];
       
@@ -310,14 +346,9 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       ts.state.assign(mpY, mpY + mData.dim);
       mHistoryinter.push_back(ts);
 
-      accepted = true; 
-
-      if(!stepreject) //previous step accepted - now we can make the step bigger 
-      {
-        mStepsize *= std::sqrt(0.9 / localerror); 
-      }
+      accepted = true;
     
-      C_FLOAT64 Tolerance = 100.0 * (fabs(outputTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+    C_FLOAT64 Tolerance = 100.0 * (fabs(outputTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
 
       // == EVENTS == 
     if (checkRoots())
@@ -385,7 +416,9 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     {
       // step is not accepted -> stepsize will get reduced 
       //mStepsize = mStepsize * std::sqrt(euler_rtolerance / localerror); 
-      mStepsize = mStepsize * std::sqrt(0.9 / localerror); 
+      //mStepsize = mStepsize * std::sqrt(0.9 / localerror); 
+      hscale = std::max(safe*pow(localerror, -alpha), minhscale);
+      mStepsize *= hscale;
       //bring back original state
       memcpy(mpY, y_original.data(), mData.dim * sizeof(C_FLOAT64));
       *mpContainerStateTime = t_old;
