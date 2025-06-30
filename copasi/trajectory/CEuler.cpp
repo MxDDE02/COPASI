@@ -61,7 +61,7 @@ CEulerMethod::~CEulerMethod()
     {
       delete [] mRootsFound.array();
     }
-}
+ }
 
 void CEulerMethod::initializeParameter()
 {
@@ -92,7 +92,6 @@ void CEulerMethod::start()
 
   // 4. Get pointer to rate vector (excluding fixed event targets)
   mpYdot = mpContainer->getRate(*mpReducedModel).array() + mpContainer->getCountFixedEventTargets();
-  int NumRoots = mpContainer->getRoots().size();
 
   // 6. Retrieve input parameters from the Trajectory Problem 
   mStepsize = getValue< double >("initial step size");
@@ -170,7 +169,8 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
   if (y != mpContainerStateTime)
     memcpy(mpContainerStateTime, y, mdimension * sizeof(C_FLOAT64));
   //this does the actual evaluation and puts it into ydot 
-  mpContainer->updateSimulatedValues(*mpReducedModel);
+  //mpContainer->updateSimulatedValues(*mpReducedModel);
+  mpContainer->updateSimulatedValues(false);
   memcpy(ydot, mpYdot, mdimension * sizeof(C_FLOAT64));
 //this is old debugging 
 #ifdef DEBUG_NUMERICS
@@ -427,7 +427,6 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
 std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
 {
-  //precaution if something went wrong 
   if (mHistoryinter.empty()) 
   {
     CCopasiMessage(CCopasiMessage::ERROR, MCTrajectoryMethod + 32);
