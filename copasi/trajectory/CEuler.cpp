@@ -281,9 +281,10 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     // == 5. error estimation ==
     C_FLOAT64 localerror = 0.0;
     C_FLOAT64 hscale; 
-    int k =2; 
+    C_FLOAT64 k =2; 
     C_FLOAT64 beta = 0.4/k;
-    C_FLOAT64 alpha = 1/k - 0.75 * beta; 
+    //C_FLOAT64 beta = 0.0; 
+    C_FLOAT64 alpha = (1/k) - (0.75 * beta); 
     C_FLOAT64 safe = 0.9; 
     C_FLOAT64 minhscale = 0.2; 
     C_FLOAT64 maxhscale = 10.0; 
@@ -308,7 +309,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       }
       else
       {
-        hscale = safe * pow(localerror,alpha)*pow(errorold, beta);
+        hscale = safe * pow(localerror,-alpha)*pow(errorold, beta);
         if(hscale<minhscale){
           hscale = minhscale;
         }
@@ -319,7 +320,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
       if(stepreject) //previous step was not accepted
       {
-        mStepsize *= 1; 
+        mStepsize *= 1; //do nothing 
       }
       else
       {
@@ -414,7 +415,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       // step is not accepted -> stepsize will get reduced 
       //mStepsize = mStepsize * std::sqrt(euler_rtolerance / localerror); 
       //mStepsize = mStepsize * std::sqrt(0.9 / localerror); 
-      hscale = std::max(safe*pow(localerror, alpha), minhscale);
+      hscale = std::max(safe*pow(localerror, -alpha), minhscale);
       mStepsize *= hscale;
       //bring back original state
       memcpy(mpY, y_original.data(), mdimension * sizeof(C_FLOAT64));
