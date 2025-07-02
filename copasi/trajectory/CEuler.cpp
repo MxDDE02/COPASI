@@ -280,7 +280,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
     // == 4. second half step ==
     for (int i = 0; i < mdimension; ++i)
-      halfstep[i] = mpY[i] + (mStepsize / 2.0) * mpYd[i];
+      halfstep[i] = y_original[i] + mStepsize * mpYd[i];
     
     //*mpContainerStateTime = t_old + mStepsize / 2.0;
 
@@ -301,7 +301,6 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     C_FLOAT64 safe = 0.9; 
     C_FLOAT64 minhscale = 0.2; 
     C_FLOAT64 maxhscale = 10.0; 
-    //C_FLOAT64 errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
     // Set beta to a nonzero value for PI control. Set beta to 0.04 or 0.08 for a good default
 
     for (int i = 1; i < mdimension; ++i)
@@ -455,7 +454,7 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
   }
 
   //actual interpolation
-  for (size_t i = 0; i < mHistoryinter.size(); ++i)
+  for (int i = 0; i < mHistoryinter.size(); ++i)
   {
     C_FLOAT64 timecheck = mHistoryinter[i].time;
     if (timecheck >= t)
@@ -545,7 +544,7 @@ C_FLOAT64 CEulerMethod::findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT
   newroot =std::numeric_limits<C_FLOAT64>::infinity();
 
   //calculating the time of the event (root = 0)
-  for (size_t i = 0; i < mNumRoot; ++i)
+  for (int i = 0; i < mNumRoot; ++i)
   {
     C_FLOAT64 fOld = pRootValueOld[i];
     C_FLOAT64 fNew = pRootValueNew[i];
@@ -553,7 +552,7 @@ C_FLOAT64 CEulerMethod::findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT
     {
       C_FLOAT64 t2 = oldtime - fOld * ((newtime - oldtime) / (fNew - fOld));
       //we have to make sure the time is the one we want - time dependent roots are annoying otherways 
-      if (t2 > mLastRootTime)
+      if (t2 > mLastRootTime) // just precaution - should not happen becuase we checked for sign change
       time[i] = t2;
       //next to the time we are saving the root state values for f calculation
       oldroot[i] = fOld;  
@@ -562,7 +561,7 @@ C_FLOAT64 CEulerMethod::findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT
   }
   //Now retrieving the time of the first event happening in the interval 
   C_FLOAT64 *minIt = std::min_element(time.begin(), time.end());
-  size_t rootIndex = std::distance(time.begin(), minIt);
+  int rootIndex = std::distance(time.begin(), minIt);
   t = *minIt;
   //we also would like the root state at that time (should be ~0)
   C_FLOAT64 fOldAtRoot = oldroot[rootIndex];

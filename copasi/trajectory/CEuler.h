@@ -140,8 +140,6 @@ private:
   C_FLOAT64 mLastRootTime;
 
 // == INTEGRATOR RELATED ARGUMENTS
-
-bool PI; 
 /**
    * The status of the integrator (failure, normal, root)
    */
@@ -161,6 +159,12 @@ bool PI;
    */
   C_INT mdimension; 
 
+/**
+   * boolean expression, which determines beta at the adpative step size calculation 
+   * if PI = false, beta will bet set zero -> no PI controller good for efficient adjustment
+   * if PI = true, beta will be set 0.4/k -> PI controller for more stable stepsize adjustment 
+   */
+  bool PI; 
     /**
    * Pointer to the array with left hand side values of the math container (=state vector).
    * => time and concentration of the species 
@@ -221,7 +225,4 @@ bool PI;
   std::vector<TimeStatePair> mHistoryinter;
 
   C_FLOAT64 errorold; 
-
-
-
 };
