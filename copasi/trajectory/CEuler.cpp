@@ -18,6 +18,7 @@ CEulerMethod::CEulerMethod(const CDataContainer * pParent,
                            const CTaskEnum::Task & taskType): 
 CTrajectoryMethod(pParent, methodType, taskType),
 mdimension(), 
+errorold(0),
 mpY(NULL), 
 mpYdot(NULL),
 mpYd(NULL), 
@@ -38,6 +39,7 @@ CEulerMethod::CEulerMethod(const CEulerMethod & src,
                            const CDataContainer * pParent): 
 CTrajectoryMethod(src, pParent),
 mdimension(), 
+errorold(0),
 mpY(NULL), 
 mpYdot(NULL), 
 mpYd(NULL), 
@@ -69,6 +71,7 @@ void CEulerMethod::initializeParameter()
   assertParameter("absolute tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.00001);
   assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.001);
   assertParameter("Maximal internal steps", CCopasiParameter::Type::INT, 1000000);
+  assertParameter("PI controller for adaptive stepsize", CCopasiParameter::Type::BOOL, true);
 
 }
 
@@ -98,6 +101,7 @@ void CEulerMethod::start()
   euler_atolerance = getValue< double >("absolute tolerance");
   euler_rtolerance = getValue< double >("relative tolerance");
   steplimit = getValue< int >("Maximal internal steps");
+  PI = getValue< bool >("PI controller for adaptive stepsize");
 
   // 7. Allocate memory 
   mpY = new C_FLOAT64[mdimension];
@@ -127,6 +131,8 @@ void CEulerMethod::start()
   mRootsNonZero = 0.0;
   mLastRootTime = -std::numeric_limits< C_FLOAT64 >::infinity();
   *mpRootValueOld = mpContainer->getRoots();
+
+  errorold = errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
 }
 
 bool CEulerMethod::isValidProblem(const CCopasiProblem * pProblem)
@@ -282,13 +288,20 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     C_FLOAT64 localerror = 0.0;
     C_FLOAT64 hscale; 
     C_FLOAT64 k =2; 
-    C_FLOAT64 beta = 0.4/k;
-    //C_FLOAT64 beta = 0.0; 
+    C_FLOAT64 beta; 
+    if(PI==true)
+    {
+      beta = 0.4/k;
+    }
+    else
+    {
+      beta = 0.0;
+    }
     C_FLOAT64 alpha = (1/k) - (0.75 * beta); 
     C_FLOAT64 safe = 0.9; 
     C_FLOAT64 minhscale = 0.2; 
     C_FLOAT64 maxhscale = 10.0; 
-    C_FLOAT64 errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
+    //C_FLOAT64 errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
     // Set beta to a nonzero value for PI control. Set beta to 0.04 or 0.08 for a good default
 
     for (int i = 1; i < mdimension; ++i)

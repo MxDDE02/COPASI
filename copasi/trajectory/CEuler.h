@@ -141,6 +141,7 @@ private:
 
 // == INTEGRATOR RELATED ARGUMENTS
 
+bool PI; 
 /**
    * The status of the integrator (failure, normal, root)
    */
@@ -218,6 +219,9 @@ private:
     * This is used for linear interpolation to obtain the state at arbitrary times.
     */
   std::vector<TimeStatePair> mHistoryinter;
+
+  C_FLOAT64 errorold; 
+
 
 
 };
