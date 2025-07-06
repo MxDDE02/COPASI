@@ -169,7 +169,12 @@ private:
    * Pointer to the array with left hand side values of the math container (=state vector).
    * => time and concentration of the species 
    */
+  CVector< C_FLOAT64 > mY;
   C_FLOAT64 * mpY;
+  // CVector< C_FLOAT64 > mY;
+
+  // CVector< C_FLOAT64 > *mpY;
+
 
   /**
    * Pointer to the array with right hand side values of the math container (=rate vector).
@@ -182,7 +187,11 @@ private:
    * => used to determine the rate of each equation with a given mpY - more used as temporary storage
    * 
    */
-  C_FLOAT64 * mpYd;
+  //C_FLOAT64 * mpYd;
+  CVector< C_FLOAT64 > mYd;
+
+  C_FLOAT64 * mpYd; 
+
   
 
 // == INTERPOLATION == 

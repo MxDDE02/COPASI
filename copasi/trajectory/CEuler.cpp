@@ -19,9 +19,9 @@ CEulerMethod::CEulerMethod(const CDataContainer * pParent,
 CTrajectoryMethod(pParent, methodType, taskType),
 mdimension(), 
 errorold(0),
-mpY(NULL), 
+mY(), 
 mpYdot(NULL),
-mpYd(NULL), 
+mYd(), 
 interpolated(NULL), 
 mNumRoot(0),
 mRootsA(),
@@ -40,9 +40,9 @@ CEulerMethod::CEulerMethod(const CEulerMethod & src,
 CTrajectoryMethod(src, pParent),
 mdimension(), 
 errorold(0),
-mpY(NULL), 
+mY(), 
 mpYdot(NULL), 
-mpYd(NULL), 
+mYd(), 
 interpolated(NULL), 
 mNumRoot(src.mNumRoot),
 mRootsA(src.mRootsA),
@@ -56,8 +56,8 @@ mpRootValueNew(NULL)
 
 CEulerMethod::~CEulerMethod()
 {
-  pdeletev(mpYd);
-  pdeletev(mpY);
+  //pdeletev(mpYd);
+  //pdeletev(mpY);
   pdeletev(interpolated); 
   if (mRootsFound.array() != NULL)
     {
@@ -104,9 +104,13 @@ void CEulerMethod::start()
   PI = getValue< bool >("PI controller for adaptive stepsize");
 
   // 7. Allocate memory 
-  mpY = new C_FLOAT64[mdimension];
-  mpYd = new C_FLOAT64[mdimension];
+  //mpY = new C_FLOAT64[mdimension];
+  //mpYd = new C_FLOAT64[mdimension];
   interpolated = new C_FLOAT64[mdimension];
+  mYd.resize(mdimension);
+  mpYd = mYd.array();
+  mY.resize(mdimension);
+  mpY = mY.array();
 
   // set outputime (to zero)
   outputTime = *mpContainerStateTime;
@@ -262,6 +266,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
     // == 1. calculate rates ==
     evalF(mpContainerStateTime, mpY, mpYd);
+    
 
     // == 2. full step ==
     for (int i = 0; i < mdimension; ++i)
@@ -301,7 +306,6 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     C_FLOAT64 safe = 0.9; 
     C_FLOAT64 minhscale = 0.2; 
     C_FLOAT64 maxhscale = 10.0; 
-    // Set beta to a nonzero value for PI control. Set beta to 0.04 or 0.08 for a good default
 
     for (int i = 1; i < mdimension; ++i)
     {
