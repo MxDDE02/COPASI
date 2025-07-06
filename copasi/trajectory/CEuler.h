@@ -171,9 +171,6 @@ private:
    */
   CVector< C_FLOAT64 > mY;
   C_FLOAT64 * mpY;
-  // CVector< C_FLOAT64 > mY;
-
-  // CVector< C_FLOAT64 > *mpY;
 
 
   /**
@@ -214,8 +211,8 @@ private:
   /**
    * Pointer to the array of the interpolated state 
    */
-
-  C_FLOAT64 * interpolated; 
+  CVector< C_FLOAT64 > interpolated;
+  C_FLOAT64 * pinterpolated; 
 
 
 /**

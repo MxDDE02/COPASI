@@ -43,7 +43,7 @@ errorold(0),
 mY(), 
 mpYdot(NULL), 
 mYd(), 
-interpolated(NULL), 
+interpolated(), 
 mNumRoot(src.mNumRoot),
 mRootsA(src.mRootsA),
 mRootsB(src.mRootsB),
@@ -58,7 +58,7 @@ CEulerMethod::~CEulerMethod()
 {
   //pdeletev(mpYd);
   //pdeletev(mpY);
-  pdeletev(interpolated); 
+  //pdeletev(pinterpolated); 
   if (mRootsFound.array() != NULL)
     {
       delete [] mRootsFound.array();
@@ -106,7 +106,9 @@ void CEulerMethod::start()
   // 7. Allocate memory 
   //mpY = new C_FLOAT64[mdimension];
   //mpYd = new C_FLOAT64[mdimension];
-  interpolated = new C_FLOAT64[mdimension];
+  //pinterpolated = new C_FLOAT64[mdimension];
+  interpolated.resize(mdimension); 
+  pinterpolated = interpolated.array(); 
   mYd.resize(mdimension);
   mpYd = mYd.array();
   mY.resize(mdimension);
@@ -229,9 +231,9 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   } 
   
   //Interpolation -> get the Trajectory Problem defined state at the requested time 
-  std::vector<C_FLOAT64> interpolatedState = interpolateAttime(outputTime);
-  //Update everything to the interpolated output 
-  memcpy(mpContainerStateTime, interpolatedState.data(), mdimension * sizeof(C_FLOAT64));
+  std::vector<C_FLOAT64> pinterpolatedState = interpolateAttime(outputTime);
+  //Update everything to the pinterpolated output 
+  memcpy(mpContainerStateTime, pinterpolatedState.data(), mdimension * sizeof(C_FLOAT64));
   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
   *mpContainerStateTime = outputTime;
   //updating the state and the roots -> for root finding 
@@ -387,9 +389,9 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         else if (mLastRootTime < RootTime)
         {
           mLastRootTime = RootTime;
-          //Update everything to the interpolated output 
-          std::vector<C_FLOAT64> interpolatedRootstate = interpolateAttime(RootTime);
-          memcpy(mpContainerStateTime, interpolatedRootstate.data(), mdimension * sizeof(C_FLOAT64));
+          //Update everything to the pinterpolated output 
+          std::vector<C_FLOAT64> pinterpolatedRootstate = interpolateAttime(RootTime);
+          memcpy(mpContainerStateTime, pinterpolatedRootstate.data(), mdimension * sizeof(C_FLOAT64));
           memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
           *mpContainerStateTime = RootTime;
           mpContainer->updateSimulatedValues(false); 
@@ -468,11 +470,11 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
       //linear interpolation 
       for (int j = 0; j < mdimension; ++j)
       {
-        interpolated[j] = p0.state[j] + ((t - p0.time) / (p1.time - p0.time)) * (p1.state[j] - p0.state[j]);
+        pinterpolated[j] = p0.state[j] + ((t - p0.time) / (p1.time - p0.time)) * (p1.state[j] - p0.state[j]);
       }
 
-      // retun: the vector of the interpolated state
-      return std::vector<C_FLOAT64>(interpolated, interpolated + mdimension);
+      // retun: the vector of the pinterpolated state
+      return std::vector<C_FLOAT64>(pinterpolated, pinterpolated + mdimension);
     }
   }
 
