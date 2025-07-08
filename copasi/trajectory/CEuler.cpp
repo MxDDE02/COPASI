@@ -32,7 +32,8 @@ mRootsB(),
 mRootsNonZero(),
 mpRootValueOld(NULL),
 mpRootValueNew(NULL),
-mLastRootTime(-std::numeric_limits< C_FLOAT64 >::infinity())
+mLastRootTime(-std::numeric_limits< C_FLOAT64 >::infinity()), 
+mpRootValueCalculator(NULL)
 
 {
   initializeParameter();
@@ -55,7 +56,8 @@ mRootsA(src.mRootsA),
 mRootsB(src.mRootsB),
 mRootsNonZero(src.mRootsNonZero),
 mpRootValueOld(NULL),
-mpRootValueNew(NULL)
+mpRootValueNew(NULL), 
+mpRootValueCalculator(NULL)
 {
   initializeParameter();
 }
@@ -78,6 +80,7 @@ void CEulerMethod::initializeParameter()
   assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.001);
   assertParameter("Maximal internal steps", CCopasiParameter::Type::INT, 1000000);
   assertParameter("PI controller for adaptive stepsize", CCopasiParameter::Type::BOOL, true);
+  mpRootValueCalculator = new CBrent::EvalTemplate< CEulerMethod >(this, &CEulerMethod::rootValue);
 
 }
 
@@ -357,7 +360,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         mpY[i] = fullstep[i];
       
       //this updates the math container to the new state 
-      *mpContainerStateTime = t_old + mStepsize;
+      //*mpContainerStateTime = t_old + mStepsize;
       memcpy(mpContainerStateTime, mpY, mdimension * sizeof(C_FLOAT64));
       mpContainer->updateSimulatedValues(false);
       mpContainer->updateRootValues(false);
@@ -377,11 +380,9 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     {
       if (checkRoots())
       {
-        C_FLOAT64 t; 
-        C_FLOAT64 f;
-        findRoot(startTime, *mpContainerStateTime, t, f); 
-        C_FLOAT64 RootValue = f; 
-        C_FLOAT64 RootTime = t; 
+        C_FLOAT64 RootTime;
+        C_FLOAT64 RootValue;
+        CBrent::findRoot(startTime, *mpContainerStateTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
 
         //Precaution if the Root is not the wanted root 
         if (RootTime > outputTime)
@@ -467,7 +468,28 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
     CCopasiMessage(CCopasiMessage::ERROR, MCTrajectoryMethod + 32);
     return {}; 
   }
+  if(t == mHistoryinter.front().time)
+  {
+    for (int i = 0; i < mHistoryinter.size(); ++i)
+    {
+      C_FLOAT64 timecheck = mHistoryinter[i].time;
+      if (timecheck >= t)
+      {
+        const TimeStatePair& p0 = mHistoryinter[i];
+        const TimeStatePair& p1 = mHistoryinter[i+1];
+      //linear interpolation 
+        for (int j = 0; j < mdimension; ++j)
+        {
+          pinterpolated[j] = p0.state[j] + ((t - p0.time) / (p1.time - p0.time)) * (p1.state[j] - p0.state[j]);
+        }
 
+        // retun: the vector of the pinterpolated state
+        return std::vector<C_FLOAT64>(pinterpolated, pinterpolated + mdimension);
+      }
+    }
+  }
+  else
+  {
   //actual interpolation
   for (int i = 0; i < mHistoryinter.size(); ++i)
   {
@@ -486,11 +508,13 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
       return std::vector<C_FLOAT64>(pinterpolated, pinterpolated + mdimension);
     }
   }
+  }
 
   // should never happen 
   CCopasiMessage(CCopasiMessage::ERROR, MCTrajectoryMethod + 32);
   return {};
 }
+
 
 bool CEulerMethod::checkRoots()
 {
@@ -544,49 +568,92 @@ bool CEulerMethod::checkRoots()
   return hasRoots;
 }
 
-C_FLOAT64 CEulerMethod::findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64&t, C_FLOAT64 &f)
+// C_FLOAT64 CEulerMethod::findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64&t, C_FLOAT64 &f)
+// {
+//   //initlializing the things we need 
+//   C_FLOAT64 *pRootValueOld = mpRootValueOld->array();
+//   C_FLOAT64 *pRootValueNew = mpRootValueNew->array();
+//   C_FLOAT64 oldtime = startTime;
+//   C_FLOAT64 newtime = endTime;
+//   CVector<C_FLOAT64> time (mNumRoot);  
+//   CVector<C_FLOAT64> oldroot (mNumRoot);  
+//   CVector<C_FLOAT64> newroot (mNumRoot);  
+//   time =std::numeric_limits<C_FLOAT64>::infinity();
+//   oldroot = std::numeric_limits<C_FLOAT64>::infinity();
+//   newroot =std::numeric_limits<C_FLOAT64>::infinity();
+
+//   //calculating the time of the event (root = 0)
+//   for (int i = 0; i < mNumRoot; ++i)
+//   {
+//     C_FLOAT64 fOld = pRootValueOld[i];
+//     C_FLOAT64 fNew = pRootValueNew[i];
+//     if(fNew*fOld <= 0) // only for those, which have a sign change 
+//     {
+//       C_FLOAT64 t2 = oldtime - fOld * ((newtime - oldtime) / (fNew - fOld));
+//       //we have to make sure the time is the one we want - time dependent roots are annoying otherways 
+//       if (t2 > mLastRootTime) // just precaution - should not happen becuase we checked for sign change
+//       time[i] = t2;
+//       //next to the time we are saving the root state values for f calculation
+//       oldroot[i] = fOld;  
+//       newroot[i] = fNew;  
+//     }
+//   }
+//   //Now retrieving the time of the first event happening in the interval 
+//   C_FLOAT64 *minIt = std::min_element(time.begin(), time.end());
+//   int rootIndex = std::distance(time.begin(), minIt);
+//   t = *minIt;
+//   //we also would like the root state at that time (should be ~0)
+//   C_FLOAT64 fOldAtRoot = oldroot[rootIndex];
+//   C_FLOAT64 fNewAtRoot = newroot[rootIndex];
+//   // via linear interpolation
+//   f = fOldAtRoot + ((t - oldtime) / (newtime - oldtime)) * (fNewAtRoot - fOldAtRoot);
+
+//   return t; 
+//   return f;
+// }
+
+C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
 {
-  //initlializing the things we need 
-  C_FLOAT64 *pRootValueOld = mpRootValueOld->array();
-  C_FLOAT64 *pRootValueNew = mpRootValueNew->array();
-  C_FLOAT64 oldtime = startTime;
-  C_FLOAT64 newtime = endTime;
-  CVector<C_FLOAT64> time (mNumRoot);  
-  CVector<C_FLOAT64> oldroot (mNumRoot);  
-  CVector<C_FLOAT64> newroot (mNumRoot);  
-  time =std::numeric_limits<C_FLOAT64>::infinity();
-  oldroot = std::numeric_limits<C_FLOAT64>::infinity();
-  newroot =std::numeric_limits<C_FLOAT64>::infinity();
+  std::vector<C_FLOAT64> interstate = interpolateAttime(time);
+  memcpy(mpContainerStateTime, interstate.data(), mdimension * sizeof(C_FLOAT64));
+  memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+  *mpContainerStateTime = time;
 
-  //calculating the time of the event (root = 0)
-  for (int i = 0; i < mNumRoot; ++i)
-  {
-    C_FLOAT64 fOld = pRootValueOld[i];
-    C_FLOAT64 fNew = pRootValueNew[i];
-    if(fNew*fOld <= 0) // only for those, which have a sign change 
+  mpContainer->updateSimulatedValues(false); 
+  mpContainer->updateRootValues(false);
+  // *mpRootValueNew = mpContainer->getRoots();
+
+  // *mpContainerStateTime = time;
+  // mpContainer->applyUpdateSequence(mUpdateTimeDependentRoots);
+
+  const C_FLOAT64 * pRoot = mpContainer->getRoots().array();
+  const C_FLOAT64 * pRootEnd = pRoot + mNumRoot;
+  const C_FLOAT64 * pRootOld = mpRootValueOld->array();
+  const C_FLOAT64 * pRootNew = mpRootValueNew->array();
+
+  C_FLOAT64 MaxRootValue = - std::numeric_limits< C_FLOAT64 >::infinity();
+  C_FLOAT64 RootValue;
+
+  for (; pRoot != pRootEnd; ++pRoot, ++pRootOld, ++pRootNew)
     {
-      C_FLOAT64 t2 = oldtime - fOld * ((newtime - oldtime) / (fNew - fOld));
-      //we have to make sure the time is the one we want - time dependent roots are annoying otherways 
-      if (t2 > mLastRootTime) // just precaution - should not happen becuase we checked for sign change
-      time[i] = t2;
-      //next to the time we are saving the root state values for f calculation
-      oldroot[i] = fOld;  
-      newroot[i] = fNew;  
-    }
-  }
-  //Now retrieving the time of the first event happening in the interval 
-  C_FLOAT64 *minIt = std::min_element(time.begin(), time.end());
-  int rootIndex = std::distance(time.begin(), minIt);
-  t = *minIt;
-  //we also would like the root state at that time (should be ~0)
-  C_FLOAT64 fOldAtRoot = oldroot[rootIndex];
-  C_FLOAT64 fNewAtRoot = newroot[rootIndex];
-  // via linear interpolation
-  f = fOldAtRoot + ((t - oldtime) / (newtime - oldtime)) * (fNewAtRoot - fOldAtRoot);
+      // We are only looking for roots which change sign in [pOld, pNew]
+      if (*pRootOld **pRootNew < 0 || *pRootNew == 0)
+        {
+          // Assure that the RootValue is increasing between old and new for each
+          // candidate root.
+          RootValue = (*pRootNew >= *pRootOld) ? *pRoot : -*pRoot;
 
-  return t; 
-  return f;
+          if (RootValue > MaxRootValue)
+            {
+              MaxRootValue = RootValue;
+            }
+        }
+    }
+
+  return MaxRootValue;
 }
+
+
 
 
 

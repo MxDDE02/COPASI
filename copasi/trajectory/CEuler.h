@@ -1,7 +1,7 @@
 #include "copasi/trajectory/CTrajectoryMethod.h"
 #include "copasi/math/CMathContainer.h"
 #include <vector>
-
+#include "copasi/utilities/CBrent.h"
 class CEulerMethod : public CTrajectoryMethod
 {
 public:
@@ -83,7 +83,7 @@ private:
    * @param t time of the root - return value 
    * @param f state of the root (should be 0) - return value 
    */
-  C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f);
+  //C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f);
 
 /**
    * Checks if a root is located between the new calculated state and the previous calculated state 
@@ -231,4 +231,6 @@ private:
   std::vector<TimeStatePair> mHistoryinter;
 
   C_FLOAT64 errorold; 
+  CBrent::Eval * mpRootValueCalculator;
+  C_FLOAT64 rootValue(const C_FLOAT64 & time); 
 };
