@@ -373,7 +373,9 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     C_FLOAT64 Tolerance = 100.0 * (fabs(outputTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
 
       // == EVENTS == 
-    if (checkRoots())
+    if(mNumRoot>0)
+    {
+      if (checkRoots())
       {
         C_FLOAT64 t; 
         C_FLOAT64 f;
@@ -433,6 +435,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         return *mpContainerStateTime;
       }
     }
+  }
   
   else
     {
