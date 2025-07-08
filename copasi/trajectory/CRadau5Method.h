@@ -213,6 +213,31 @@ private:
    */
   C_FLOAT64 mTargetTime;
 
+    /**
+   * Vectors for storing root values
+   */
+  CVector< C_FLOAT64 > mRootsA;
+  CVector< C_FLOAT64 > mRootsB;
+  CVector< C_FLOAT64 > mRootsNonZero;
+
+
+  /**
+   * Pointer to the vector holding the previously calculated roots
+   */
+  CVector< C_FLOAT64 > *mpRootValueOld;
+
+  /**
+   * Pointer to the vector holding the newly calculated roots
+   */
+  CVector< C_FLOAT64 > *mpRootValueNew;
+
+
+  /**
+   * The last time dependent root time
+   */
+  C_FLOAT64 mLastRootTime;
+
+
   /**
    * Root counter to determine whether the internal
    * step limit is exceeded.
@@ -355,5 +380,14 @@ protected:
    * Destroy the mask which hides all roots being constant and zero.
    */
   void destroyRootMask();
+
+  bool checkRoots(); 
+
+  C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f); 
+
+  C_FLOAT64 oldTime; 
+  C_FLOAT64 Roott;
+  C_FLOAT64 Rootf;
+
 };
 #endif // COPASI_CRadau5Method
