@@ -13,6 +13,7 @@
 #include "copasi/model/CState.h"
 
 #include "copasi/odepack++/CRadau5.h"
+#include "copasi/utilities/CBrent.h"
 
 class CModel;
 
@@ -383,7 +384,7 @@ protected:
 
   bool checkRoots(); 
 
-  C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f); 
+  //C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f); 
 
   C_FLOAT64 oldTime; 
   C_FLOAT64 Roott;
@@ -393,8 +394,14 @@ protected:
 
   CVector<C_FLOAT64> original; 
   C_FLOAT64 * poriginal; 
+  CVector<C_FLOAT64> afterstep; 
+  C_FLOAT64 * pafterstep; 
 
   C_FLOAT64 startsteptime; 
+  C_FLOAT64 aftersteptime; 
+
+  CBrent::Eval * mpRootValueCalculator;
+  C_FLOAT64 rootValue(const C_FLOAT64 & time); 
 
 };
 #endif // COPASI_CRadau5Method
