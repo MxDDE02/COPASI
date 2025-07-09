@@ -77,7 +77,8 @@ CRadau5Method::CRadau5Method(const CDataContainer * pParent,
   pafterstep(NULL), 
   startsteptime(0), 
   aftersteptime(0),
-  mpRootValueCalculator(NULL)
+  mpRootValueCalculator(NULL), 
+  findingroot(false)
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -128,7 +129,8 @@ CRadau5Method::CRadau5Method(const CRadau5Method & src,
   pafterstep(NULL),
   startsteptime(0), 
   aftersteptime(0),
-  mpRootValueCalculator(NULL)
+  mpRootValueCalculator(NULL), 
+  findingroot(false)
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -205,7 +207,7 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
   mpContainer->updateRootValues(false);
   *mpRootValueOld = mpContainer->getRoots();
 
-  std::vector<C_FLOAT64> y_original(mpY, mpY + mData.dim);
+  std::vector<C_FLOAT64> y_original(mpContainerStateTime, mpContainerStateTime + mData.dim);
   C_FLOAT64 t_old = *mpContainerStateTime;
   if (mData.dim == 1 && mNumRoots == 0) //just do nothing if there are no variables except time
     {
@@ -324,13 +326,15 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
 
           return Status;
         }
-        aftersteptime = mTime; 
+        aftersteptime = EndTime; 
+         
         memcpy(pafterstep, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
         mpContainer->updateSimulatedValues(false);
         mpContainer->updateRootValues(false);
         C_FLOAT64 Tolerance = 100.0 * (fabs(EndTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
         if(Roott >= 0)
         {
+          findingroot = true; 
           if (Roott > EndTime)
           {
             Status = NORMAL;
@@ -341,7 +345,7 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
           }
           else if (mLastRootTime < Roott)
           {
-            memcpy(mpY, y_original.data(), mData.dim * sizeof(C_FLOAT64));
+            memcpy(mpContainerStateTime, y_original.data(), mData.dim * sizeof(C_FLOAT64));
             *mpContainerStateTime = t_old;
             mTime = t_old; 
             mRADAU(&mData.dim, &EvalF, &mTime, mpY, &Roott, &H,
@@ -398,6 +402,7 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
         }
       else if(checkRoots())
         {
+          findingroot = true; 
           C_FLOAT64 RootTime;
           C_FLOAT64 RootValue;
           C_FLOAT64 OldTime = oldTime; 
@@ -416,7 +421,7 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
           }
           else if (mLastRootTime < RootTime)
           {
-            memcpy(mpY, y_original.data(), mData.dim * sizeof(C_FLOAT64));
+            memcpy(mpContainerStateTime, y_original.data(), mData.dim * sizeof(C_FLOAT64));
             *mpContainerStateTime = t_old;
             mTime = t_old; 
             mRADAU(&mData.dim, &EvalF, &mTime, mpY, &RootTime, &H,
@@ -479,6 +484,10 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
 #endif // DEBUG_FLOW
   // C_FLOAT64 t = 1;
   // interpolation(t);
+  Roott = -std::numeric_limits< C_FLOAT64 >::infinity(); 
+  findingroot = false; 
+  mTime = *mpContainerStateTime; 
+  oldTime = *mpContainerStateTime;
   return Status;
 }
 
@@ -512,6 +521,7 @@ void CRadau5Method::start()
   //memcpy(poriginal, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
   afterstep.resize(mData.dim); 
   pafterstep = afterstep.array(); 
+  findingroot = false; 
 
   
 
@@ -646,7 +656,7 @@ void CRadau5Method::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * 
 #endif // DEBUG_NUMERICS
 
   memcpy(mpContainerStateTime, yTemp.array(), mData.dim * sizeof(C_FLOAT64)); 
-  if (oldTime != mTime)
+  if (oldTime != mTime&&findingroot==false)
   {
     C_FLOAT64 Tolerance = 100.0 * (fabs(*t) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
     mpContainer->updateSimulatedValues(false);
@@ -1152,25 +1162,35 @@ bool CRadau5Method::checkRoots()
 //   return f;
 // }
 
-void CRadau5Method::interpolation(C_FLOAT64 t)
+CVector<C_FLOAT64> CRadau5Method::interpolation(C_FLOAT64 t) 
 {
+  // == Saving the original State ===
+  CVector<C_FLOAT64> interoriginal(mData.dim);
+  C_FLOAT64* pinteroriginal = interoriginal.array(); 
+  memcpy(pinteroriginal, poriginal, mData.dim * sizeof(C_FLOAT64));
+  //C_FLOAT64 t_old = *mpContainerStateTime;
+
+  // place where the interpolated vector goes inside 
+  CVector<C_FLOAT64> data(mData.dim);
+  C_FLOAT64* pdata = data.array(); 
+
+
+  // interpolation 
   if(t<startsteptime)
   {
     CCopasiMessage(CCopasiMessage::EXCEPTION, "interpolation time is before starting time");
+    return {}; 
   }
-  else if(t==startsteptime)
+  else if(fabs(t - startsteptime) < 1e-12)
   {
-    memcpy(mpContainerStateTime, poriginal, mData.dim * sizeof(C_FLOAT64));
-    mTime = *mpContainerStateTime;
-    mpContainer->updateSimulatedValues(false); 
-    mpContainer->updateRootValues(false);
+    memcpy(pdata, poriginal, mData.dim * sizeof(C_FLOAT64));
+    return data; 
   }
-  else if(t==aftersteptime)
+  else if(fabs(t - aftersteptime) < 1e-12)
   {
-    memcpy(mpContainerStateTime, pafterstep, mData.dim * sizeof(C_FLOAT64));
-    mTime = *mpContainerStateTime;
-    mpContainer->updateSimulatedValues(false); 
-    mpContainer->updateRootValues(false);
+    memcpy(pdata, pafterstep, mData.dim * sizeof(C_FLOAT64));
+    return data; 
+    
   }
   else 
   {
@@ -1250,24 +1270,36 @@ void CRadau5Method::interpolation(C_FLOAT64 t)
     
 
   *mpContainerStateTime = mTime;
-  mpContainer->updateSimulatedValues(false); 
-  mpContainer->updateRootValues(false);
+  memcpy(pdata, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+
+
+  //return to the original state 
+  memcpy(mpContainerStateTime, pinteroriginal, mData.dim * sizeof(C_FLOAT64));
+  //*mpContainerStateTime = t_old; 
+  
 
 #ifdef DEBUG_FLOW
   std::cout << "State:     " << mpContainer->getState(false) << std::endl;
   std::cout << "Rate:      " << mpContainer->getRate(false) << std::endl;
 #endif // DEBUG_FLOW
+
+  return data; 
   }
   
 }
 
+
 C_FLOAT64 CRadau5Method::rootValue(const C_FLOAT64 & time)
 {
-  interpolation(time);
+  CVector<C_FLOAT64> interstate = interpolation(time);
+  C_FLOAT64* pinterstate = interstate.array(); 
+  memcpy(mpContainerStateTime, pinterstate, mData.dim * sizeof(C_FLOAT64));
+  //memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+  *mpContainerStateTime = time;
 
   mpContainer->updateSimulatedValues(false); 
   mpContainer->updateRootValues(false);
-  // *mpRootValueNew = mpContainer->getRoots();
+  *mpRootValueNew = mpContainer->getRoots();
 
   // *mpContainerStateTime = time;
   // mpContainer->applyUpdateSequence(mUpdateTimeDependentRoots);

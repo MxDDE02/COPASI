@@ -390,7 +390,7 @@ protected:
   C_FLOAT64 Roott;
   C_FLOAT64 Rootf;
 
-  void interpolation(C_FLOAT64);
+  CVector<C_FLOAT64> interpolation(C_FLOAT64);
 
   CVector<C_FLOAT64> original; 
   C_FLOAT64 * poriginal; 
@@ -402,6 +402,7 @@ protected:
 
   CBrent::Eval * mpRootValueCalculator;
   C_FLOAT64 rootValue(const C_FLOAT64 & time); 
+  bool findingroot; 
 
 };
 #endif // COPASI_CRadau5Method
