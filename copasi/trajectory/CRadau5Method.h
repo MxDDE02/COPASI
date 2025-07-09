@@ -389,5 +389,12 @@ protected:
   C_FLOAT64 Roott;
   C_FLOAT64 Rootf;
 
+  void interpolation(C_FLOAT64);
+
+  CVector<C_FLOAT64> original; 
+  C_FLOAT64 * poriginal; 
+
+  C_FLOAT64 startsteptime; 
+
 };
 #endif // COPASI_CRadau5Method
