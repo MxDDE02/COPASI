@@ -317,7 +317,8 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     C_FLOAT64 safe = 0.9; 
     C_FLOAT64 minhscale = 0.2; 
     C_FLOAT64 maxhscale = 10.0; 
-
+    if(mdimension>1)
+    {
     for (int i = 1; i < mdimension; ++i)
     {
       deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
@@ -325,7 +326,18 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       localerror += std::abs(deltaerror[i] / scale[i]);
     }
     localerror = localerror/(mdimension-1); 
-    
+    }
+    else
+    {
+      for (int i = 0; i < mdimension; ++i)
+    {
+      deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
+      scale[i] = euler_atolerance + std::max(std::abs(y_original[i]), std::abs(fullstep[i])) * euler_rtolerance;
+      localerror += std::abs(deltaerror[i] / scale[i]);
+    }
+    localerror = localerror/(mdimension);
+    }
+
 
     // == 6. decition if step can be accepted ==
   if (localerror <= 1.0)
@@ -401,7 +413,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
           //Update everything to the pinterpolated output 
           std::vector<C_FLOAT64> pinterpolatedRootstate = interpolateAttime(RootTime);
           memcpy(mpContainerStateTime, pinterpolatedRootstate.data(), mdimension * sizeof(C_FLOAT64));
-          memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+          //memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
           *mpContainerStateTime = RootTime;
           mpContainer->updateSimulatedValues(false); 
           mpContainer->updateRootValues(false);
@@ -621,7 +633,7 @@ C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
 
   mpContainer->updateSimulatedValues(false); 
   mpContainer->updateRootValues(false);
-  // *mpRootValueNew = mpContainer->getRoots();
+  //*mpRootValueNew = mpContainer->getRoots();
 
   // *mpContainerStateTime = time;
   // mpContainer->applyUpdateSequence(mUpdateTimeDependentRoots);
