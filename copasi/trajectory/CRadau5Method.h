@@ -400,7 +400,8 @@ protected:
 
   CBrent::Eval * mpRootValueCalculator;
   C_FLOAT64 rootValue(const C_FLOAT64 & time); 
-  bool findingroot; 
+  bool rootfound; 
+  C_FLOAT64 internalroottime; 
 
   virtual Status dostep(C_FLOAT64 startTime, C_FLOAT64 EndTime, Status start); 
 

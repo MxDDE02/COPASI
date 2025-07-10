@@ -78,7 +78,8 @@ CRadau5Method::CRadau5Method(const CDataContainer * pParent,
   startsteptime(0), 
   aftersteptime(0),
   mpRootValueCalculator(NULL), 
-  findingroot(false)
+  rootfound(false), 
+  internalroottime(0) 
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -130,7 +131,8 @@ CRadau5Method::CRadau5Method(const CRadau5Method & src,
   startsteptime(0), 
   aftersteptime(0),
   mpRootValueCalculator(NULL), 
-  findingroot(false)
+  rootfound(false), 
+  internalroottime(0) 
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -201,6 +203,9 @@ void CRadau5Method::stateChange(const CMath::StateChange & change)
 CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
     const bool & final)
 {
+  internalroottime = -std::numeric_limits< C_FLOAT64 >::infinity();
+  rootfound = false; 
+  oldTime = *mpContainerStateTime;
   saveState(StartState, iStatus);
   mpContainer->updateSimulatedValues(false);
   mpContainer->updateRootValues(false);
@@ -216,11 +221,17 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
   mpContainer->updateRootValues(false);
   if(mNumRoots>0)
   {
-    if(checkRoots())
+    if(checkRoots()&&internalroottime<0)
     {
+      internalroottime = oldTime; 
+    }
+    if(internalroottime>0)
+    {
+      interpolate(internalroottime); 
+      dostep(internalroottime, endtime, Status); 
       C_FLOAT64 RootTime; 
       C_FLOAT64 RootValue; 
-      CBrent::findRoot(starttime, endtime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
+      CBrent::findRoot(internalroottime, endtime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
       C_FLOAT64 Tolerance = 100.0 * (fabs(endtime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
       if (RootTime > endtime)
           {
@@ -296,7 +307,8 @@ void CRadau5Method::start()
   //memcpy(poriginal, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
   afterstep.resize(mData.dim); 
   pafterstep = afterstep.array(); 
-  findingroot = false; 
+  rootfound = false; 
+  
 
   
 
@@ -431,24 +443,21 @@ void CRadau5Method::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * 
 #endif // DEBUG_NUMERICS
 
   memcpy(mpContainerStateTime, yTemp.array(), mData.dim * sizeof(C_FLOAT64)); 
-  // if (oldTime != mTime&&findingroot==false)
-  // {
-  //   C_FLOAT64 Tolerance = 100.0 * (fabs(*t) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
-  //   mpContainer->updateSimulatedValues(false);
-  //   mpContainer->updateRootValues(false);
-  //   //*mpRootValueOld = mpContainer->getRoots();
+  if (oldTime != mTime&&rootfound==false)
+  {
+    mpContainer->updateSimulatedValues(false);
+    mpContainer->updateRootValues(false);
+    //*mpRootValueOld = mpContainer->getRoots();
 
-  //   if (checkRoots())
-  //   {
-  //     C_FLOAT64 RootTime;
-  //     C_FLOAT64 RootValue;
-  //     CBrent::findRoot(oldTime, mTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
-  //     Roott = RootTime; 
-  //     Rootf = RootValue; 
-  //   }
-  //   oldTime = mTime;
-  //   *mpRootValueOld = mpContainer->getRoots();
-  // }
+    if (checkRoots())
+    {
+      internalroottime = oldTime;  
+      rootfound = true; 
+    }
+    oldTime = mTime;
+    *mpRootValueOld = mpContainer->getRoots();
+
+  }
 
   return;
 }
@@ -992,7 +1001,7 @@ CTrajectoryMethod::Status CRadau5Method::dostep(C_FLOAT64 startTime, C_FLOAT64 e
   //   }
   // else
   //   {
-      mRADAU(&mData.dim, &EvalF, &mTime, mpY, &endTime, &H,
+      mRADAU(&mData.dim, &EvalF, &mTime, mpY, &EndTime, &H,
              mRtol.array(), mpAtol, &ITOL,
              EvalJ, &IJAC, &MLJAC, &MUJAC,
              EvalM, &IMAS, &MLMAS, &MUMAS,
