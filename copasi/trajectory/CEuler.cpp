@@ -329,7 +329,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     }
     else
     {
-      for (int i = 0; i < mdimension; ++i)
+    for (int i = 0; i < mdimension; ++i)
     {
       deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
       scale[i] = euler_atolerance + std::max(std::abs(y_original[i]), std::abs(fullstep[i])) * euler_rtolerance;
@@ -344,7 +344,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     {
       if(localerror == 0.0)
       {
-        hscale = maxhscale; 
+        hscale = 1; 
       }
       else
       {
