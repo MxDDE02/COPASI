@@ -443,7 +443,7 @@ void CRadau5Method::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * 
 #endif // DEBUG_NUMERICS
 
   memcpy(mpContainerStateTime, yTemp.array(), mData.dim * sizeof(C_FLOAT64)); 
-  if (oldTime != mTime&&rootfound==false)
+  if (oldTime != mTime&&rootfound==false&&mTime==oldTime+H)
   {
     mpContainer->updateSimulatedValues(false);
     mpContainer->updateRootValues(false);
