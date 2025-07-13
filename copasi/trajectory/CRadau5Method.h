@@ -387,13 +387,7 @@ protected:
   //C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f); 
 
   C_FLOAT64 oldTime; 
-  C_FLOAT64 Roott;
-  C_FLOAT64 Rootf;
 
-  CVector<C_FLOAT64> original; 
-  C_FLOAT64 * poriginal; 
-  CVector<C_FLOAT64> afterstep; 
-  C_FLOAT64 * pafterstep; 
 
   C_FLOAT64 startsteptime; 
   C_FLOAT64 aftersteptime; 
@@ -401,7 +395,8 @@ protected:
   CBrent::Eval * mpRootValueCalculator;
   C_FLOAT64 rootValue(const C_FLOAT64 & time); 
   bool rootfound; 
-  C_FLOAT64 internalroottime; 
+  // C_FLOAT64 internalroottime; 
+  // C_FLOAT64 internalroottimened; 
 
   virtual Status dostep(C_FLOAT64 startTime, C_FLOAT64 EndTime, Status start); 
 
@@ -414,6 +409,12 @@ protected:
   void interpolate(C_FLOAT64 t); 
 
   void internalcheck(); 
+
+  std::vector<C_FLOAT64> internalroottime; 
+  std::vector<C_FLOAT64> internalroottimened;
+
+  C_FLOAT64 oldoldTime; 
+
 
 };
 #endif // COPASI_CRadau5Method

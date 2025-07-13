@@ -69,17 +69,13 @@ CRadau5Method::CRadau5Method(const CDataContainer * pParent,
   mpRootValueNew(NULL),
   mLastRootTime(-std::numeric_limits< C_FLOAT64 >::infinity()), 
   oldTime(0), 
-  Roott(), 
-  Rootf(), 
-  original(), 
-  poriginal(NULL), 
-  afterstep(), 
-  pafterstep(NULL), 
   startsteptime(0), 
   aftersteptime(0),
   mpRootValueCalculator(NULL), 
   rootfound(false), 
-  internalroottime(0) 
+  internalroottime(), 
+  internalroottimened(), 
+  oldoldTime(0)
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -122,17 +118,13 @@ CRadau5Method::CRadau5Method(const CRadau5Method & src,
   mpRootValueOld(NULL),
   mpRootValueNew(NULL), 
   oldTime(0), 
-  Roott(), 
-  Rootf(), 
-  original(), 
-  poriginal(NULL), 
-  afterstep(), 
-  pafterstep(NULL),
-  startsteptime(0), 
-  aftersteptime(0),
+  startsteptime(), 
+  aftersteptime(),
   mpRootValueCalculator(NULL), 
   rootfound(false), 
-  internalroottime(0) 
+  internalroottime(), 
+  internalroottimened(), 
+  oldoldTime(0)
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -203,75 +195,110 @@ void CRadau5Method::stateChange(const CMath::StateChange & change)
 CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
     const bool & final)
 {
-  internalroottime = -std::numeric_limits< C_FLOAT64 >::infinity();
+  // Precaution for Rootfinding == 
+  internalroottime.clear();
+  internalroottimened.clear();
   rootfound = false; 
   oldTime = *mpContainerStateTime;
-  saveState(StartState, iStatus);
+  oldoldTime = oldTime; 
+  // == Precaution for interpolation == 
   mpContainer->updateSimulatedValues(false);
   mpContainer->updateRootValues(false);
   *mpRootValueOld = mpContainer->getRoots();
+  saveState(StartState, iStatus);
+  
+  // == Actual step 
   C_FLOAT64 starttime = *mpContainerStateTime; 
   startsteptime = starttime; 
   C_FLOAT64 endtime = *mpContainerStateTime+deltaT; 
-  Status Status;
+  Status Status = NORMAL;
   dostep(starttime, endtime, Status); 
   aftersteptime = endtime; 
   saveState(EndState, nStatus); 
   mpContainer->updateSimulatedValues(false);
   mpContainer->updateRootValues(false);
+
+  // == Rootfinding 
   if(mNumRoots>0)
   {
-    if(checkRoots()&&internalroottime<0)
+    if(checkRoots()) // was a root in the last step?
     {
-      internalroottime = oldTime; 
+      internalroottime.push_back(oldTime); 
+      internalroottimened.push_back(endtime);
     }
-    if(internalroottime>0)
+    while(!internalroottime.empty()&&rootfound==false)
     {
-      interpolate(internalroottime); 
-      dostep(internalroottime, endtime, Status); 
-      C_FLOAT64 RootTime; 
-      C_FLOAT64 RootValue; 
-      CBrent::findRoot(internalroottime, endtime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
-      C_FLOAT64 Tolerance = 100.0 * (fabs(endtime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
-      if (RootTime > endtime)
-          {
-            Status = NORMAL;
-          }
-          else if (fabs(RootTime -mLastRootTime) < Tolerance)
-          {
-            Status = NORMAL;
-          }
-          else if (mLastRootTime < RootTime)
-          {
-            interpolate(RootTime);
-            mpContainer->updateSimulatedValues(false);
-            mpContainer->updateRootValues(false);
-            *mpRootValueNew = mpContainer->getRoots();
+      // Iterator auf kleinstes Element suchen
+      auto itMin = std::min_element(internalroottime.begin(), internalroottime.end());
 
-            // Mark the appropriate root
-                C_INT * pRootFound = mRootsFound.array();
-                C_INT * pRootFoundEnd = pRootFound + mNumRoots;
-                C_FLOAT64 * pRootValue = mpRootValueNew->array();
+      // Index des kleinsten Elements
+      size_t idx = std::distance(internalroottime.begin(), itMin);
 
-                Tolerance = 100.0 * (fabs(RootTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+      // Werte holen
+      C_FLOAT64 rootstart = internalroottime[idx];
+      C_FLOAT64 rootend   = internalroottimened[idx];
 
-                for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
-                // Added a numerical Tolerance just to make sure 
-                // if (*pRootValue == RootValue || *pRootValue == -RootValue)
-                  if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance)
-                    {
-                      *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
-                    }
-                  else
-                    {
-                      *pRootFound = static_cast< C_INT >(CMath::RootToggleType::NoToggle);
-                    }
-                  //most important thing to fire Events 
-                  mLastRootTime = RootTime; 
-                  Status = ROOT;
-                  saveState(mLastRootState, ROOT);
+      // Interpolation und Step
+      interpolate(rootstart);
+      *mpRootValueOld = mpContainer->getRoots();
+      dostep(rootstart, rootend, Status);
 
-          }
+      mpContainer->updateSimulatedValues(false);
+      mpContainer->updateRootValues(false);
+
+    if (!checkRoots())
+      {
+        // Element entfernen
+        internalroottime.erase(internalroottime.begin() + idx);
+        internalroottimened.erase(internalroottimened.begin() + idx);
+      }
+    else
+        {
+        rootfound = true; 
+        C_FLOAT64 RootTime; 
+        C_FLOAT64 RootValue; 
+        CBrent::findRoot(rootstart, rootend, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
+        C_FLOAT64 Tolerance = 100.0 * (fabs(rootend) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+        if (RootTime > endtime)
+            {
+              Status = NORMAL;
+            }
+            else if (fabs(RootTime -mLastRootTime) < Tolerance)
+            {
+              Status = NORMAL;
+            }
+            else if (mLastRootTime < RootTime)
+            {
+              interpolate(RootTime);
+              mpContainer->updateSimulatedValues(false);
+              mpContainer->updateRootValues(false);
+              *mpRootValueNew = mpContainer->getRoots();
+
+              // Mark the appropriate root
+                  C_INT * pRootFound = mRootsFound.array();
+                  C_INT * pRootFoundEnd = pRootFound + mNumRoots;
+                  C_FLOAT64 * pRootValue = mpRootValueNew->array();
+
+                  Tolerance = 100.0 * (fabs(RootTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+
+                  for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
+                  // Added a numerical Tolerance just to make sure 
+                  // if (*pRootValue == RootValue || *pRootValue == -RootValue)
+                    if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance)
+                      {
+                        *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
+                      }
+                    else
+                      {
+                        *pRootFound = static_cast< C_INT >(CMath::RootToggleType::NoToggle);
+                      }
+                    //most important thing to fire Events 
+                    mLastRootTime = RootTime; 
+                    Status = ROOT;
+                    saveState(mLastRootState, ROOT);
+            }
+        }
+
     } 
   }
   return Status; 
@@ -301,13 +328,9 @@ void CRadau5Method::start()
   mRootsNonZero = 0.0;
   mLastRootTime = -std::numeric_limits< C_FLOAT64 >::infinity();
   *mpRootValueOld = mpContainer->getRoots();
-  Roott = -std::numeric_limits< C_FLOAT64 >::infinity();
-  original.resize(mData.dim); 
-  poriginal = original.array(); 
-  //memcpy(poriginal, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
-  afterstep.resize(mData.dim); 
-  pafterstep = afterstep.array(); 
   rootfound = false; 
+  internalroottime.clear(); 
+  internalroottimened.clear();
   
 
   
@@ -443,19 +466,34 @@ void CRadau5Method::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * 
 #endif // DEBUG_NUMERICS
 
   memcpy(mpContainerStateTime, yTemp.array(), mData.dim * sizeof(C_FLOAT64)); 
-  if (oldTime != mTime&&rootfound==false&&mTime==oldTime+H)
+  C_FLOAT64 Tolerance = 100.0 * (fabs(mTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+
+  if (rootfound==false&&(mTime - oldoldTime)>Tolerance)
   {
     mpContainer->updateSimulatedValues(false);
     mpContainer->updateRootValues(false);
     //*mpRootValueOld = mpContainer->getRoots();
-
     if (checkRoots())
     {
-      internalroottime = oldTime;  
-      rootfound = true; 
+      if(mTime<oldTime)
+      {
+        internalroottime.push_back(oldoldTime); 
+        internalroottimened.push_back(mTime); 
+      }
+      else
+      {
+        internalroottime.push_back(oldTime); 
+        internalroottimened.push_back(mTime); 
+      }
+      
     }
+     if(mTime>oldTime)
+    {
+      *mpRootValueOld = mpContainer->getRoots();
+    }
+    oldoldTime = oldTime; 
     oldTime = mTime;
-    *mpRootValueOld = mpContainer->getRoots();
+
 
   }
 
@@ -953,6 +991,7 @@ CTrajectoryMethod::Status CRadau5Method::dostep(C_FLOAT64 startTime, C_FLOAT64 e
 
   C_FLOAT64 StartTime = startTime;
   mTime = startTime; 
+  oldTime = mTime; 
   C_FLOAT64 EndTime = endTime; 
 
 #ifdef DEBUG_FLOW
@@ -1023,43 +1062,44 @@ CTrajectoryMethod::Status CRadau5Method::dostep(C_FLOAT64 startTime, C_FLOAT64 e
           return Status;
         }
 
-      // if (!mpContainer->isStateValid())
-      //   {
-      //     if (!final || mTask == 4 || mTask == 5)
-      //       {
-      //         Status = FAILURE;
-      //         mPeekAheadMode = false;
+      if (!mpContainer->isStateValid())
+        {
+          if (mTask == 4 || mTask == 5)
+          //if (!final || mTask == 4 || mTask == 5)
+            {
+              Status = FAILURE;
+              mPeekAheadMode = false;
 
-      //         if (mLsodaStatus <= 0)
-      //           {
-      //             CCopasiMessage(CCopasiMessage::EXCEPTION, MCTrajectoryMethod + 6, mErrorMsg.str().c_str());
-      //           }
-      //         else
-      //           {
-      //             CCopasiMessage(CCopasiMessage::EXCEPTION, MCTrajectoryMethod + 25, mTime);
-      //           }   
-      //       }
+              if (mLsodaStatus <= 0)
+                {
+                  CCopasiMessage(CCopasiMessage::EXCEPTION, MCTrajectoryMethod + 6, mErrorMsg.str().c_str());
+                }
+              else
+                {
+                  CCopasiMessage(CCopasiMessage::EXCEPTION, MCTrajectoryMethod + 25, mTime);
+                }   
+            }
 
-          // We try to recover by preventing overshooting.
-// #ifdef DEBUG_NUMERICS
-//           std::cout << "State: " << mpContainer->getState(*mpReducedModel) << std::endl;
-// #endif // DEBUG_NUMERICS
+          //We try to recover by preventing overshooting.
+#ifdef DEBUG_NUMERICS
+          std::cout << "State: " << mpContainer->getState(*mpReducedModel) << std::endl;
+#endif // DEBUG_NUMERICS
 
-//           mContainerState = mLastSuccessState;
-// #ifdef DEBUG_NUMERICS
-//           std::cout << "State: " << mpContainer->getState(*mpReducedModel) << std::endl;
-// #endif // DEBUG_NUMERICS
+          mContainerState = mLastSuccessState;
+#ifdef DEBUG_NUMERICS
+          std::cout << "State: " << mpContainer->getState(*mpReducedModel) << std::endl;
+#endif // DEBUG_NUMERICS
 
-//           mTime = *mpContainerStateTime;
-//           mTask += 3;
-//           mDWork[0] = EndTime;
-//           stateChange(CMath::eStateChange::State);
+          mTime = *mpContainerStateTime;
+          mTask += 3;
+          mDWork[0] = EndTime;
+          stateChange(CMath::eStateChange::State);
 
-//           Status = step();
-//           mTask -= 3;
+          Status = step(endTime-startTime);
+          mTask -= 3;
 
-//           return Status;
-//         }
+          return Status;
+        }
         Status = NORMAL; 
         *mpContainerStateTime = mTime;
 
@@ -1092,7 +1132,7 @@ void CRadau5Method::interpolate(C_FLOAT64 t)
   else 
   {
     resetState(StartState);
-    Status interstate; 
+    Status interstate=NORMAL; 
     dostep(startsteptime, t, interstate); 
     mpContainer->updateSimulatedValues(false);
     mpContainer->updateRootValues(false);
