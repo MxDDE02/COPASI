@@ -283,8 +283,8 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
 
                   for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
                   // Added a numerical Tolerance just to make sure 
-                    if (*pRootValue == RootValue || *pRootValue == -RootValue)
-                    //if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance)
+                    //if (*pRootValue == RootValue || *pRootValue == -RootValue)
+                    if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance)
                       {
                         *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
                       }
@@ -1140,7 +1140,3 @@ void CRadau5Method::interpolate(C_FLOAT64 t)
   }
 }
 
-void CRadau5Method::internalcheck()
-{
-
-}

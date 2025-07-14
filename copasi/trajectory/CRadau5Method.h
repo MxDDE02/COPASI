@@ -408,8 +408,6 @@ protected:
 
   void interpolate(C_FLOAT64 t); 
 
-  void internalcheck(); 
-
   std::vector<C_FLOAT64> internalroottime; 
   std::vector<C_FLOAT64> internalroottimened;
 
