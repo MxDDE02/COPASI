@@ -159,38 +159,38 @@ bool CRadau5Method::elevateChildren()
 }
 
 // virtual
-void CRadau5Method::stateChange(const CMath::StateChange & change)
-{
-  if (change == CMath::eStateChange::FixedEventTarget)
-    {
-      // The only thing which changed are fixed event targets which do not effect the simulation
-      // thus we can continue from the saved state after updating the fixed event targets;
-      memcpy(mSavedState.ContainerState.array(), mContainerState.array(), mpContainer->getCountFixedEventTargets() * sizeof(C_FLOAT64));
-      memcpy(mLastRootState.ContainerState.array(), mContainerState.array(), mpContainer->getCountFixedEventTargets() * sizeof(C_FLOAT64));
-    }
-  else if (change & (CMath::StateChange(CMath::eStateChange::State) | CMath::eStateChange::ContinuousSimulation | CMath::eStateChange::EventSimulation))
-    {
-      // We need to restart the integrator
-      mLsodaStatus = 1;
+// void CRadau5Method::stateChange(const CMath::StateChange & change)
+// {
+//   if (change == CMath::eStateChange::FixedEventTarget)
+//     {
+//       // The only thing which changed are fixed event targets which do not effect the simulation
+//       // thus we can continue from the saved state after updating the fixed event targets;
+//       memcpy(mSavedState.ContainerState.array(), mContainerState.array(), mpContainer->getCountFixedEventTargets() * sizeof(C_FLOAT64));
+//       memcpy(mLastRootState.ContainerState.array(), mContainerState.array(), mpContainer->getCountFixedEventTargets() * sizeof(C_FLOAT64));
+//     }
+//   else if (change & (CMath::StateChange(CMath::eStateChange::State) | CMath::eStateChange::ContinuousSimulation | CMath::eStateChange::EventSimulation))
+//     {
+//       // We need to restart the integrator
+//       mLsodaStatus = 1;
 
-      mTime = *mpContainerStateTime;
-      mPeekAheadMode = false;
-      mSavedState.Status = FAILURE;
+//       mTime = *mpContainerStateTime;
+//       mPeekAheadMode = false;
+//       mSavedState.Status = FAILURE;
 
-      if (mNumRoots > 0 &&
-          mTime == mLastRootState.ContainerState[mpContainer->getCountFixedEventTargets()])
-        {
-          mLastRootState.ContainerState = mContainerState;
-        }
-      else
-        {
-          mLastRootState.ContainerState = std::numeric_limits< C_FLOAT64 >::quiet_NaN();
-        }
+//       if (mNumRoots > 0 &&
+//           mTime == mLastRootState.ContainerState[mpContainer->getCountFixedEventTargets()])
+//         {
+//           mLastRootState.ContainerState = mContainerState;
+//         }
+//       else
+//         {
+//           mLastRootState.ContainerState = std::numeric_limits< C_FLOAT64 >::quiet_NaN();
+//         }
 
-      mpContainer->updateSimulatedValues(*mpReducedModel);
-      setRootMaskType(NONE);
-    }
-}
+//       mpContainer->updateSimulatedValues(*mpReducedModel);
+//       setRootMaskType(NONE);
+//     }
+// }
 
 CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
     const bool & final)
@@ -283,8 +283,8 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
 
                   for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
                   // Added a numerical Tolerance just to make sure 
-                  // if (*pRootValue == RootValue || *pRootValue == -RootValue)
-                    if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance)
+                    if (*pRootValue == RootValue || *pRootValue == -RootValue)
+                    //if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance)
                       {
                         *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
                       }
@@ -296,6 +296,7 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
                     mLastRootTime = RootTime; 
                     Status = ROOT;
                     saveState(mLastRootState, ROOT);
+                    return Status; 
             }
         }
 

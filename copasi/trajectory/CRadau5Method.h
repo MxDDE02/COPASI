@@ -289,12 +289,12 @@ public:
    */
   virtual bool elevateChildren();
 
-  /**
-   * Inform the trajectory method that the state has changed outside
-   * its control
-   * @param const CMath::StateChange & change
-   */
-  virtual void stateChange(const CMath::StateChange & change);
+  // /**
+  //  * Inform the trajectory method that the state has changed outside
+  //  * its control
+  //  * @param const CMath::StateChange & change
+  //  */
+  // virtual void stateChange(const CMath::StateChange & change);
 
   /**
    *  This instructs the method to calculate a time step of deltaT
