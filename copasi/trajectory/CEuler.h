@@ -235,5 +235,4 @@ private:
   C_FLOAT64 rootValue(const C_FLOAT64 & time); 
 
   void findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f);
-  C_FLOAT64 mLastMaxRootValue;
 };

@@ -33,8 +33,7 @@ mRootsNonZero(),
 mpRootValueOld(NULL),
 mpRootValueNew(NULL),
 mLastRootTime(-std::numeric_limits< C_FLOAT64 >::infinity()), 
-mpRootValueCalculator(NULL), 
-mLastMaxRootValue(0)
+mpRootValueCalculator(NULL)
 
 {
   initializeParameter();
@@ -58,8 +57,7 @@ mRootsB(src.mRootsB),
 mRootsNonZero(src.mRootsNonZero),
 mpRootValueOld(NULL),
 mpRootValueNew(NULL), 
-mpRootValueCalculator(NULL), 
-mLastMaxRootValue(0)
+mpRootValueCalculator(NULL)
 {
   initializeParameter();
 }
@@ -148,7 +146,6 @@ void CEulerMethod::start()
   mRootsNonZero = 0.0;
   mLastRootTime = -std::numeric_limits< C_FLOAT64 >::infinity();
   *mpRootValueOld = mpContainer->getRoots();
-  mLastMaxRootValue = -std::numeric_limits< C_FLOAT64 >::infinity();
 
   errorold = errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
 }
@@ -401,7 +398,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         findRoot(startTime, *mpContainerStateTime, t, f); 
         C_FLOAT64 RootValue = f; 
         C_FLOAT64 RootTime = t; 
-        // rootValue(RootTime); 
+        //rootValue(RootTime, RootValue); 
         // RootValue = mLastMaxRootValue; 
         // C_FLOAT64 timepoint = *mpContainerStateTime;
         // std::vector<C_FLOAT64> interstate = interpolateAttime(startTime);
@@ -445,7 +442,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
           for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
           // Added a numerical Tolerance just to make sure 
-          // if (*pRootValue == RootValue || *pRootValue == -RootValue)
+          //if (*pRootValue == RootValue || *pRootValue == -RootValue)
             if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance)
               {
                 *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
@@ -673,7 +670,6 @@ C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
             }
         }
     }
-  mLastMaxRootValue = MaxRootValue; 
   return MaxRootValue;
 }
 
