@@ -33,7 +33,8 @@ mRootsNonZero(),
 mpRootValueOld(NULL),
 mpRootValueNew(NULL),
 mLastRootTime(-std::numeric_limits< C_FLOAT64 >::infinity()), 
-mpRootValueCalculator(NULL)
+mpRootValueCalculator(NULL), 
+mLastMaxRootValue(0)
 
 {
   initializeParameter();
@@ -57,7 +58,8 @@ mRootsB(src.mRootsB),
 mRootsNonZero(src.mRootsNonZero),
 mpRootValueOld(NULL),
 mpRootValueNew(NULL), 
-mpRootValueCalculator(NULL)
+mpRootValueCalculator(NULL), 
+mLastMaxRootValue(0)
 {
   initializeParameter();
 }
@@ -146,6 +148,7 @@ void CEulerMethod::start()
   mRootsNonZero = 0.0;
   mLastRootTime = -std::numeric_limits< C_FLOAT64 >::infinity();
   *mpRootValueOld = mpContainer->getRoots();
+  mLastMaxRootValue = -std::numeric_limits< C_FLOAT64 >::infinity();
 
   errorold = errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
 }
@@ -398,6 +401,8 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         findRoot(startTime, *mpContainerStateTime, t, f); 
         C_FLOAT64 RootValue = f; 
         C_FLOAT64 RootTime = t; 
+        // rootValue(RootTime); 
+        // RootValue = mLastMaxRootValue; 
         // C_FLOAT64 timepoint = *mpContainerStateTime;
         // std::vector<C_FLOAT64> interstate = interpolateAttime(startTime);
         // memcpy(mpContainerStateTime, interstate.data(), mdimension * sizeof(C_FLOAT64));
@@ -590,7 +595,7 @@ bool CEulerMethod::checkRoots()
   return hasRoots;
 }
 
-C_FLOAT64 CEulerMethod::findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f)
+void CEulerMethod::findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f)
 {
   //initlializing the things we need 
   C_FLOAT64 *pRootValueOld = mpRootValueOld->array();
@@ -629,9 +634,6 @@ C_FLOAT64 CEulerMethod::findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT
   C_FLOAT64 fNewAtRoot = newroot[rootIndex];
   // via linear interpolation
   f = fOldAtRoot + ((t - oldtime) / (newtime - oldtime)) * (fNewAtRoot - fOldAtRoot);
-
-  return t; 
-  return f;
 }
 
 C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
@@ -671,7 +673,7 @@ C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
             }
         }
     }
-
+  mLastMaxRootValue = MaxRootValue; 
   return MaxRootValue;
 }
 
