@@ -385,6 +385,15 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       mHistoryinter.push_back(ts);
 
       accepted = true;
+      if(*mpContainerStateTime > outputTime)
+      {
+        std::vector<C_FLOAT64> outputstate = interpolateAttime(outputTime);
+        memcpy(mpContainerStateTime, outputstate.data(), mdimension * sizeof(C_FLOAT64));
+        memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+        *mpContainerStateTime = outputTime;
+        mpContainer->updateSimulatedValues(false); 
+        mpContainer->updateRootValues(false);
+      }
     
     C_FLOAT64 Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
 
@@ -393,23 +402,23 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     {
       if (checkRoots())
       {
-        C_FLOAT64 t; 
-        C_FLOAT64 f;
-        findRoot(startTime, *mpContainerStateTime, t, f); 
-        C_FLOAT64 RootValue = f; 
-        C_FLOAT64 RootTime = t; 
+        // C_FLOAT64 t; 
+        // C_FLOAT64 f;
+        // findRoot(startTime, *mpContainerStateTime, t, f); 
+        // C_FLOAT64 RootValue = f; 
+        // C_FLOAT64 RootTime = t; 
         //rootValue(RootTime, RootValue); 
         // RootValue = mLastMaxRootValue; 
-        // C_FLOAT64 timepoint = *mpContainerStateTime;
+        //C_FLOAT64 timepoint = *mpContainerStateTime;
         // std::vector<C_FLOAT64> interstate = interpolateAttime(startTime);
         // memcpy(mpContainerStateTime, interstate.data(), mdimension * sizeof(C_FLOAT64));
         // memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
         // *mpContainerStateTime = startTime;
         // *mpRootValueOld = mpContainer->getRoots();
-        // C_FLOAT64 RootTime; 
-        // C_FLOAT64 RootValue; 
-        // CBrent::findRoot(startTime, timepoint, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
-
+        C_FLOAT64 RootTime; 
+        C_FLOAT64 RootValue; 
+        CBrent::findRoot(startTime, *mpContainerStateTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
+        Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
         //Precaution if the Root is not the wanted root 
         if (RootTime > outputTime)
         {
@@ -639,7 +648,6 @@ C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
   memcpy(mpContainerStateTime, interstate.data(), mdimension * sizeof(C_FLOAT64));
   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
   *mpContainerStateTime = time;
-
   mpContainer->updateSimulatedValues(false); 
   mpContainer->updateRootValues(false);
   *mpRootValueNew = mpContainer->getRoots();
