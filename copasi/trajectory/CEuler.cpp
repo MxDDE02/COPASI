@@ -407,14 +407,6 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         // findRoot(startTime, *mpContainerStateTime, t, f); 
         // C_FLOAT64 RootValue = f; 
         // C_FLOAT64 RootTime = t; 
-        //rootValue(RootTime, RootValue); 
-        // RootValue = mLastMaxRootValue; 
-        //C_FLOAT64 timepoint = *mpContainerStateTime;
-        // std::vector<C_FLOAT64> interstate = interpolateAttime(startTime);
-        // memcpy(mpContainerStateTime, interstate.data(), mdimension * sizeof(C_FLOAT64));
-        // memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
-        // *mpContainerStateTime = startTime;
-        // *mpRootValueOld = mpContainer->getRoots();
         C_FLOAT64 RootTime; 
         C_FLOAT64 RootValue; 
         CBrent::findRoot(startTime, *mpContainerStateTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
