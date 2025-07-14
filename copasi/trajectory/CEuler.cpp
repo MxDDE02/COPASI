@@ -444,7 +444,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
           for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
           // Added a numerical Tolerance just to make sure 
           //if (*pRootValue == RootValue || *pRootValue == -RootValue)
-            if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance)
+            if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance ||std::fabs(*pRootValue-0) < Tolerance )
               {
                 *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
               }
@@ -670,8 +670,8 @@ C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
             }
         }
     }
-  return MaxRootValue;
-}
+    return MaxRootValue;
+  }
 
 
 
