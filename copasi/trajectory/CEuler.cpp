@@ -410,6 +410,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         C_FLOAT64 RootTime; 
         C_FLOAT64 RootValue; 
         CBrent::findRoot(startTime, *mpContainerStateTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
+  
         Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
         //Precaution if the Root is not the wanted root 
         if (RootTime > outputTime)
@@ -440,11 +441,12 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
           C_FLOAT64 * pRootValue = mpRootValueNew->array();
 
           Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
-
+    
           for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
+          {
           // Added a numerical Tolerance just to make sure 
           //if (*pRootValue == RootValue || *pRootValue == -RootValue)
-            if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance ||std::fabs(*pRootValue-0) < Tolerance )
+            if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance || std::fabs(*pRootValue-0) < Tolerance )
               {
                 *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
               }
@@ -452,6 +454,8 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
               {
                 *pRootFound = static_cast< C_INT >(CMath::RootToggleType::NoToggle);
               }
+          }
+        
           //most important thing to fire Events 
           mStatus = ROOT;
           return RootTime - startTime;
@@ -672,10 +676,4 @@ C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
     }
     return MaxRootValue;
   }
-
-
-
-
-
-
 
