@@ -674,6 +674,6 @@ C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
             }
         }
     }
-    return MaxRootValue;
-  }
+  return MaxRootValue;
+}
 
