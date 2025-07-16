@@ -75,9 +75,9 @@ CEulerMethod::~CEulerMethod()
 
 void CEulerMethod::initializeParameter()
 {
-  assertParameter("initial step size", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.01);
-  assertParameter("absolute tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.00001);
-  assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.001);
+  assertParameter("initial step size", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000001);
+  assertParameter("absolute tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000000001);
+  assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000001);
   assertParameter("Maximal internal steps", CCopasiParameter::Type::INT, 1000000);
   assertParameter("PI controller for adaptive stepsize", CCopasiParameter::Type::BOOL, true);
   mpRootValueCalculator = new CBrent::EvalTemplate< CEulerMethod >(this, &CEulerMethod::rootValue);
@@ -267,6 +267,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
   //step calculation 
   while (!accepted)
   {
+    C_FLOAT64 current_stepsize = mStepsize;
     //making copies of the original state + vector allocation
     std::vector<C_FLOAT64> y_original(mpY, mpY + mdimension);
     C_FLOAT64 t_old = *mpContainerStateTime;
@@ -282,13 +283,13 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
     // == 2. full step ==
     for (int i = 0; i < mdimension; ++i)
-      fullstep[i] = y_original[i] + mStepsize * mpYd[i];
+      fullstep[i] = y_original[i] + current_stepsize * mpYd[i];
 
     // == 3. first half step ==
     for (int i = 0; i < mdimension; ++i)
-      mpY[i] = y_original[i] + (mStepsize / 2.0) * mpYd[i];
+      mpY[i] = y_original[i] + (current_stepsize*0.5) * mpYd[i];
 
-    *mpContainerStateTime = t_old + mStepsize / 2.0;
+    *mpContainerStateTime = t_old + (current_stepsize*0.5);
 
     evalF(mpContainerStateTime, mpY, mpYd);
     // memcpy(mpContainerStateTime, mpY, mdimension * sizeof(C_FLOAT64));
@@ -297,7 +298,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
     // == 4. second half step ==
     for (int i = 0; i < mdimension; ++i)
-      halfstep[i] = y_original[i] + mStepsize * mpYd[i];
+      halfstep[i] = mpY[i] + (current_stepsize*0.5) * mpYd[i];
     
     //*mpContainerStateTime = t_old + mStepsize / 2.0;
 
@@ -318,15 +319,18 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     C_FLOAT64 safe = 0.9; 
     C_FLOAT64 minhscale = 0.2; 
     C_FLOAT64 maxhscale = 10.0; 
+    C_FLOAT64 sum_sq = 0.0;
+    C_FLOAT64 term = 0.0;
     if(mdimension>1)
     {
     for (int i = 1; i < mdimension; ++i)
     {
       deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
       scale[i] = euler_atolerance + std::max(std::abs(y_original[i]), std::abs(fullstep[i])) * euler_rtolerance;
-      localerror += std::abs(deltaerror[i] / scale[i]);
+      term = deltaerror[i] / scale[i];
+      sum_sq += term * term;
     }
-    localerror = localerror/(mdimension-1); 
+    localerror = sqrt(sum_sq / (mdimension-1));
     }
     else
     {
@@ -334,15 +338,35 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     {
       deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
       scale[i] = euler_atolerance + std::max(std::abs(y_original[i]), std::abs(fullstep[i])) * euler_rtolerance;
-      localerror += std::abs(deltaerror[i] / scale[i]);
+      term = deltaerror[i] / scale[i];
+      sum_sq += term * term;
     }
-    localerror = localerror/(mdimension);
+    localerror = sqrt(sum_sq / mdimension);
     }
 
 
     // == 6. decition if step can be accepted ==
   if (localerror <= 1.0)
     {
+      for (int i = 0; i < mdimension; ++i)
+        mpY[i] = fullstep[i];
+
+      *mpContainerStateTime = t_old + current_stepsize;
+
+      //this updates the math container to the new state 
+      //*mpContainerStateTime = t_old + mStepsize;
+      //memcpy(mpContainerStateTime, mpY, mdimension * sizeof(C_FLOAT64));
+      mpContainer->updateSimulatedValues(false);
+      mpContainer->updateRootValues(false);
+
+      //saving the intermediate state for interpolation
+      TimeStatePair ts;
+      ts.time = *mpContainerStateTime;
+      ts.state.assign(mpY, mpY + mdimension);
+      mHistoryinter.push_back(ts);
+
+      accepted = true;
+
       if(localerror == 0.0)
       {
         hscale = 1; 
@@ -360,42 +384,23 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
 
       if(stepreject) //previous step was not accepted
       {
-        mStepsize *= 1; //do nothing 
+        hscale = std::max(hscale, 1.0); 
+        mStepsize *= hscale;
       }
-      else
-      {
         mStepsize *= hscale; 
         errorold = std::max(localerror, 1.0e-04); 
         stepreject =false; 
-      }
-
-      for (int i = 0; i < mdimension; ++i)
-        mpY[i] = fullstep[i];
-      
-      //this updates the math container to the new state 
-      //*mpContainerStateTime = t_old + mStepsize;
-      memcpy(mpContainerStateTime, mpY, mdimension * sizeof(C_FLOAT64));
-      mpContainer->updateSimulatedValues(false);
-      mpContainer->updateRootValues(false);
-
-      //saving the intermediate state for interpolation
-      TimeStatePair ts;
-      ts.time = *mpContainerStateTime;
-      ts.state.assign(mpY, mpY + mdimension);
-      mHistoryinter.push_back(ts);
-
-      accepted = true;
-      if(*mpContainerStateTime > outputTime)
-      {
-        std::vector<C_FLOAT64> outputstate = interpolateAttime(outputTime);
-        memcpy(mpContainerStateTime, outputstate.data(), mdimension * sizeof(C_FLOAT64));
-        memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
-        *mpContainerStateTime = outputTime;
-        mpContainer->updateSimulatedValues(false); 
-        mpContainer->updateRootValues(false);
-      }
+      // if(*mpContainerStateTime > outputTime)
+      // {
+      //   std::vector<C_FLOAT64> outputstate = interpolateAttime(outputTime);
+      //   memcpy(mpContainerStateTime, outputstate.data(), mdimension * sizeof(C_FLOAT64));
+      //   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+      //   *mpContainerStateTime = outputTime;
+      //   mpContainer->updateSimulatedValues(false); 
+      //   mpContainer->updateRootValues(false);
+      // }
     
-    C_FLOAT64 Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+    C_FLOAT64 Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits<C_FLOAT64>::min());
 
       // == EVENTS == 
     if(mNumRoot>0)
