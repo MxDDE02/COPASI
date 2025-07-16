@@ -468,8 +468,8 @@ void CRadau5Method::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * 
 
   memcpy(mpContainerStateTime, yTemp.array(), mData.dim * sizeof(C_FLOAT64)); 
   C_FLOAT64 Tolerance = 100.0 * (fabs(mTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
-
-  if (rootfound==false&&(mTime - oldoldTime)>Tolerance)
+  C_FLOAT64 newtime = mTime - H; 
+  if (rootfound==false&&(newtime - oldoldTime)>Tolerance)
   {
     mpContainer->updateSimulatedValues(false);
     mpContainer->updateRootValues(false);
