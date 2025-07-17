@@ -390,6 +390,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         mStepsize *= hscale; 
         errorold = std::max(localerror, 1.0e-04); 
         stepreject =false; 
+
       if(*mpContainerStateTime > outputTime)
       {
         std::vector<C_FLOAT64> outputstate = interpolateAttime(outputTime);
@@ -415,12 +416,6 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         C_FLOAT64 RootTime; 
         C_FLOAT64 RootValue; 
         CBrent::findRoot(startTime, *mpContainerStateTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
-        std::vector<C_FLOAT64> rootvalues = rootvs(RootTime);
-        C_FLOAT64 sizeroot = rootvalues.size(); 
-        for(int i =0; i < sizeroot; i++)
-        {
-          rootvalues[i];
-        }
         Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
         //Precaution if the Root is not the wanted root 
         if (RootTime > outputTime)
@@ -436,6 +431,10 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         else if (mLastRootTime < RootTime)
         {
           mLastRootTime = RootTime;
+          if(CBrent::findRoot(startTime, RootTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9))
+          {
+          CCopasiMessage(CCopasiMessage::ERROR, "Discontinous events");
+          }
           //Update everything to the pinterpolated output 
           std::vector<C_FLOAT64> pinterpolatedRootstate = interpolateAttime(RootTime);
           memcpy(mpContainerStateTime, pinterpolatedRootstate.data(), mdimension * sizeof(C_FLOAT64));
