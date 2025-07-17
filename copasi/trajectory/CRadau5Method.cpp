@@ -228,17 +228,17 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
     }
     while(!internalroottime.empty()&&rootfound==false)
     {
-      // Iterator auf kleinstes Element suchen
+      rootfound = true; 
+      // find the earliest roottime 
       auto itMin = std::min_element(internalroottime.begin(), internalroottime.end());
 
-      // Index des kleinsten Elements
       size_t idx = std::distance(internalroottime.begin(), itMin);
 
-      // Werte holen
+      // get the interval for the first root 
       C_FLOAT64 rootstart = internalroottime[idx];
       C_FLOAT64 rootend   = internalroottimened[idx];
 
-      // Interpolation und Step
+      // Interpolation and Step
       interpolate(rootstart);
       *mpRootValueOld = mpContainer->getRoots();
       dostep(rootstart, rootend, Status);
@@ -254,7 +254,6 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
       }
     else
         {
-        rootfound = true; 
         C_FLOAT64 RootTime; 
         C_FLOAT64 RootValue; 
         CBrent::findRoot(rootstart, rootend, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
