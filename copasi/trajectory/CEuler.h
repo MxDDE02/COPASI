@@ -236,6 +236,4 @@ private:
 
   void findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f);
 
-  std::vector<C_FLOAT64> rootvs(const C_FLOAT64 & time);
-
 };
