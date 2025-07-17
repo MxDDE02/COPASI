@@ -511,7 +511,7 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
     return {}; 
   }
   C_FLOAT64 Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
-  if((t - mHistoryinter.front().time)<Tolerance)
+  if(fabs(t-mHistoryinter.front().time)<Tolerance)
   {
     for (int i = 0; i < mHistoryinter.size(); ++i)
     {
@@ -520,7 +520,7 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
       //linear interpolation 
       for (int j = 0; j < mdimension; ++j)
       {
-        pinterpolated[j] = p0.state[j]+ ((t - p0.time) / (p1.time - p0.time)) * (p1.state[j] - p0.state[j]);
+        pinterpolated[j] = p0.state[j]+ ((p1.state[j] - p0.state[j]) / (p1.time - p0.time)) * (t - p0.time);
       }
 
         // retun: the vector of the pinterpolated state
