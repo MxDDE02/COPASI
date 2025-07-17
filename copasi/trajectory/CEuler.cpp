@@ -390,15 +390,15 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         mStepsize *= hscale; 
         errorold = std::max(localerror, 1.0e-04); 
         stepreject =false; 
-      // if(*mpContainerStateTime > outputTime)
-      // {
-      //   std::vector<C_FLOAT64> outputstate = interpolateAttime(outputTime);
-      //   memcpy(mpContainerStateTime, outputstate.data(), mdimension * sizeof(C_FLOAT64));
-      //   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
-      //   *mpContainerStateTime = outputTime;
-      //   mpContainer->updateSimulatedValues(false); 
-      //   mpContainer->updateRootValues(false);
-      // }
+      if(*mpContainerStateTime > outputTime)
+      {
+        std::vector<C_FLOAT64> outputstate = interpolateAttime(outputTime);
+        memcpy(mpContainerStateTime, outputstate.data(), mdimension * sizeof(C_FLOAT64));
+        memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+        *mpContainerStateTime = outputTime;
+        mpContainer->updateSimulatedValues(false); 
+        mpContainer->updateRootValues(false);
+      }
     
     C_FLOAT64 Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits<C_FLOAT64>::min());
 
@@ -415,7 +415,12 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         C_FLOAT64 RootTime; 
         C_FLOAT64 RootValue; 
         CBrent::findRoot(startTime, *mpContainerStateTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
-  
+        std::vector<C_FLOAT64> rootvalues = rootvs(RootTime);
+        C_FLOAT64 sizeroot = rootvalues.size(); 
+        for(int i =0; i < sizeroot; i++)
+        {
+          rootvalues[i];
+        }
         Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
         //Precaution if the Root is not the wanted root 
         if (RootTime > outputTime)
@@ -682,3 +687,36 @@ C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
   return MaxRootValue;
 }
 
+std::vector<C_FLOAT64> CEulerMethod::rootvs(const C_FLOAT64 & time)
+{
+  std::vector<C_FLOAT64> interstate = interpolateAttime(time);
+  memcpy(mpContainerStateTime, interstate.data(), mdimension * sizeof(C_FLOAT64));
+  memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+  *mpContainerStateTime = time;
+  mpContainer->updateSimulatedValues(false); 
+  mpContainer->updateRootValues(false);
+  *mpRootValueNew = mpContainer->getRoots();
+  std::vector<C_FLOAT64> rootvalues; 
+
+  const C_FLOAT64 * pRoot = mpContainer->getRoots().array();
+  const C_FLOAT64 * pRootEnd = pRoot + mNumRoot;
+  const C_FLOAT64 * pRootOld = mpRootValueOld->array();
+  const C_FLOAT64 * pRootNew = mpRootValueNew->array();
+
+  C_FLOAT64 MaxRootValue = - std::numeric_limits< C_FLOAT64 >::infinity();
+  C_FLOAT64 RootValue;
+
+  for (; pRoot != pRootEnd; ++pRoot, ++pRootOld, ++pRootNew)
+    {
+      // We are only looking for roots which change sign in [pOld, pNew]
+      if (*pRootOld **pRootNew < 0 || *pRootNew == 0)
+        {
+          // Assure that the RootValue is increasing between old and new for each
+          // candidate root.
+          RootValue = (*pRootNew >= *pRootOld) ? *pRoot : -*pRoot;
+          rootvalues.push_back(RootValue);
+        }
+    }
+  
+  return rootvalues;
+}
