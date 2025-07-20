@@ -207,6 +207,7 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
 
 CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool & /* final */)
 {
+
   outputTime = *mpContainerStateTime + deltaT;
   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
   mpContainer->updateSimulatedValues(false);
@@ -326,7 +327,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     for (int i = 1; i < mdimension; ++i)
     {
       deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
-      scale[i] = euler_atolerance + std::max(std::abs(y_original[i]), std::abs(fullstep[i])) * euler_rtolerance;
+      scale[i] = euler_atolerance + std::max(fabs(y_original[i]), fabs(fullstep[i])) * euler_rtolerance;
       term = deltaerror[i] / scale[i];
       sum_sq += term * term;
     }
@@ -400,8 +401,6 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         mpContainer->updateSimulatedValues(false); 
         mpContainer->updateRootValues(false);
       }
-    
-    C_FLOAT64 Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits<C_FLOAT64>::min());
 
       // == EVENTS == 
     if(mNumRoot>0)
@@ -417,7 +416,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         C_FLOAT64 RootValue; 
         CBrent::findRoot(startTime, *mpContainerStateTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
 
-        Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+        C_FLOAT64 Tolerance = 100.0 * (fabs(RootTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
         //Precaution if the Root is not the wanted root 
         if (RootTime > outputTime)
         {
@@ -450,7 +449,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
           C_INT * pRootFoundEnd = pRootFound + mNumRoot;
           C_FLOAT64 * pRootValue = mpRootValueNew->array();
 
-          Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+          Tolerance = 100.0 * (fabs(RootValue) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
     
           for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
           {
@@ -510,7 +509,7 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
     CCopasiMessage(CCopasiMessage::ERROR, MCTrajectoryMethod + 32);
     return {}; 
   }
-  C_FLOAT64 Tolerance = 100.0 * (fabs(*mpContainerStateTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+  C_FLOAT64 Tolerance = 100.0 * (fabs(t) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
   if(fabs(t-mHistoryinter.front().time)<Tolerance)
   {
     for (int i = 0; i < mHistoryinter.size(); ++i)
