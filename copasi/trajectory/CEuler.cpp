@@ -317,7 +317,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       beta = 0.0;
     }
     C_FLOAT64 alpha = (1/k) - (0.75 * beta); 
-    C_FLOAT64 safe = 0.9; 
+    C_FLOAT64 safe = 0.5; 
     C_FLOAT64 minhscale = 0.2; 
     C_FLOAT64 maxhscale = 10.0; 
     C_FLOAT64 sum_sq = 0.0;
