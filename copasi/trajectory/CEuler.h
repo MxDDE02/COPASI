@@ -2,6 +2,7 @@
 #include "copasi/math/CMathContainer.h"
 #include <vector>
 #include "copasi/utilities/CBrent.h"
+#include "copasi/trajectory/CRootFinder.h"
 class CEulerMethod : public CTrajectoryMethod
 {
 public:
@@ -106,6 +107,8 @@ private:
    * @param ydot evaluated rate - return value 
    */
   virtual void evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot);
+
+  void evalRoot(const double & time, CVectorCore< C_FLOAT64 > & rootValues);
 
 
   // == ROOT RELATED ARGUMENTS == 
@@ -231,9 +234,24 @@ private:
   std::vector<TimeStatePair> mHistoryinter;
 
   C_FLOAT64 errorold; 
-  CBrent::Eval * mpRootValueCalculator;
   C_FLOAT64 rootValue(const C_FLOAT64 & time); 
 
   void findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f);
 
+  size_t mNumRoots; 
+  CVectorCore< C_FLOAT64 > mContainerRoots;
+
+  CVector< C_INT > mRootMask;
+  CRootFinder::RootMasking mRootMasking;
+
+  void createRootMask();
+  void destroyRootMask();
+
+  CRootFinder mRootFinder;
+
+  CRootFinder::Eval * mpRootValueCalculator;
+  CVectorCore< C_FLOAT64 > mRoots;
+  size_t mRootCounter;
+
+  C_FLOAT64 * mpRootRelativeTolerance;
 };

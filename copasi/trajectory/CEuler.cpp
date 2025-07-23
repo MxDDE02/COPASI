@@ -12,6 +12,7 @@
 #include "copasi/utilities/CCopasiMethod.h"
 #include "copasi/model/CModel.h"
 #include <vector>
+#include "copasi/core/CRootContainer.h"
 
 CEulerMethod::CEulerMethod(const CDataContainer * pParent,
                            const CTaskEnum::Method & methodType,
@@ -26,16 +27,24 @@ mpY(NULL),
 mpYd(NULL),
 interpolated(),
 pinterpolated(NULL), 
-mNumRoot(0),
-mRootsA(),
-mRootsB(),
-mRootsNonZero(),
-mpRootValueOld(NULL),
-mpRootValueNew(NULL),
-mLastRootTime(-std::numeric_limits< C_FLOAT64 >::infinity()), 
-mpRootValueCalculator(NULL)
-
+// mNumRoot(0),
+// mRootsA(),
+// mRootsB(),
+// mRootsNonZero(),
+// mpRootValueOld(NULL),
+// mpRootValueNew(NULL),
+// mLastRootTime(-std::numeric_limits< C_FLOAT64 >::infinity()), 
+mpRootValueCalculator(NULL), 
+mNumRoots(0), 
+mContainerRoots(),
+mRootMask(),
+mRootMasking(CRootFinder::NONE),
+mRootFinder(), 
+mRoots(), 
+mRootCounter(0),
+mpRootRelativeTolerance(NULL)
 {
+  mpRootValueCalculator = new CRootFinder::EvalTemplate< CEulerMethod >(this, & CEulerMethod::evalRoot);
   initializeParameter();
 }
 
@@ -51,15 +60,25 @@ mpY(NULL),
 mpYd(NULL),
 interpolated(), 
 pinterpolated(NULL), 
-mNumRoot(src.mNumRoot),
-mRootsA(src.mRootsA),
-mRootsB(src.mRootsB),
-mRootsNonZero(src.mRootsNonZero),
-mpRootValueOld(NULL),
-mpRootValueNew(NULL), 
-mpRootValueCalculator(NULL)
+// mNumRoot(src.mNumRoot),
+// mRootsA(src.mRootsA),
+// mRootsB(src.mRootsB),
+// mRootsNonZero(src.mRootsNonZero),
+// mpRootValueOld(NULL),
+// mpRootValueNew(NULL), 
+mpRootValueCalculator(NULL), 
+mNumRoots(src.mNumRoots), 
+mContainerRoots(), 
+mRootMask(src.mRootMask),
+mRootMasking(src.mRootMasking),
+mRootFinder(src.mRootFinder), 
+mRoots(), 
+mRootCounter(src.mRootCounter),
+mpRootRelativeTolerance(NULL)
 {
   initializeParameter();
+  mContainerRoots.initialize(src.mContainerRoots);
+  mRoots.initialize(src.mRoots);
 }
 
 CEulerMethod::~CEulerMethod()
@@ -67,10 +86,10 @@ CEulerMethod::~CEulerMethod()
   //pdeletev(mpYd);
   //pdeletev(mpY);
   //pdeletev(pinterpolated); 
-  if (mRootsFound.array() != NULL)
-    {
-      delete [] mRootsFound.array();
-    }
+  // if (mRootsFound.array() != NULL)
+  //   {
+  //     delete [] mRootsFound.array();
+  //   }
  }
 
 void CEulerMethod::initializeParameter()
@@ -80,8 +99,8 @@ void CEulerMethod::initializeParameter()
   assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000001);
   assertParameter("Maximal internal steps", CCopasiParameter::Type::INT, 1000000);
   assertParameter("PI controller for adaptive stepsize", CCopasiParameter::Type::BOOL, true);
-  mpRootValueCalculator = new CBrent::EvalTemplate< CEulerMethod >(this, &CEulerMethod::rootValue);
-
+  assertParameter("Tolerance for Root Finder", CCopasiParameter::Type::UDOUBLE, (C_FLOAT64) 1.0e-6);
+  mpRootRelativeTolerance = assertParameter("Tolerance for Root Finder", CCopasiParameter::Type::UDOUBLE, (C_FLOAT64) 1.0e-6);
 }
 
 bool CEulerMethod::elevateChildren()
@@ -111,6 +130,7 @@ void CEulerMethod::start()
   euler_rtolerance = getValue< double >("relative tolerance");
   steplimit = getValue< int >("Maximal internal steps");
   PI = getValue< bool >("PI controller for adaptive stepsize");
+  
 
   // 7. Allocate memory 
   //mpY = new C_FLOAT64[mdimension];
@@ -130,22 +150,42 @@ void CEulerMethod::start()
   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
 
   //========Initialize Roots Related Arguments========
-  mNumRoot = mpContainer->getRoots().size();
+  mContainerRoots.initialize(mpContainer->getRoots());
+  mNumRoots = mContainerRoots.size();
 
-  if (mRootsFound.array() != NULL)
-    {
-      delete [] mRootsFound.array();
-    }
 
-  mRootsFound.initialize(mNumRoot, new C_INT[mNumRoot]);
-  mRootsA.resize(mNumRoot);
-  mRootsB.resize(mNumRoot);
-  mpRootValueNew = &mRootsA;
-  mpRootValueOld = &mRootsB;
-  mRootsNonZero.resize(mNumRoot);
-  mRootsNonZero = 0.0;
-  mLastRootTime = -std::numeric_limits< C_FLOAT64 >::infinity();
-  *mpRootValueOld = mpContainer->getRoots();
+  mRootMask.resize(mNumRoots);
+  mRootMask = CRootFinder::NONE;
+
+  C_INT *pMask = mRootMask.begin();
+  C_INT *pMaskEnd = mRootMask.end();
+  const bool * pDiscrete = mpContainer->getRootIsDiscrete().begin();
+
+  for (; pMask != pMaskEnd; ++pMask, ++pDiscrete)
+    *pMask = *pDiscrete ? CRootFinder::DISCRETE : CRootFinder::NONE;
+
+  mRootFinder.initialize(mpRootValueCalculator, *mpRootRelativeTolerance, mRootMask);
+
+  mRoots.initialize(mRootFinder.getRootValues());
+  // We ignore the first root which checks for physical correctness as this is treated with only internally.
+  mRootsFound.initialize(mNumRoots, const_cast< C_INT * >(mRootFinder.getToggledRoots().begin()));
+
+  // mNumRoot = mpContainer->getRoots().size();
+
+  // if (mRootsFound.array() != NULL)
+  //   {
+  //     delete [] mRootsFound.array();
+  //   }
+
+  // mRootsFound.initialize(mNumRoot, new C_INT[mNumRoot]);
+  // mRootsA.resize(mNumRoot);
+  // mRootsB.resize(mNumRoot);
+  // mpRootValueNew = &mRootsA;
+  // mpRootValueOld = &mRootsB;
+  // mRootsNonZero.resize(mNumRoot);
+  // mRootsNonZero = 0.0;
+  // mLastRootTime = -std::numeric_limits< C_FLOAT64 >::infinity();
+  // *mpRootValueOld = mpContainer->getRoots();
 
   errorold = errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
 }
@@ -207,13 +247,14 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
 
 CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool & /* final */)
 {
-
+  mRootCounter = 0; 
   outputTime = *mpContainerStateTime + deltaT;
   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
   mpContainer->updateSimulatedValues(false);
   mpContainer->updateRootValues(false);
-  *mpRootValueOld = mpContainer->getRoots();
+  //*mpRootValueOld = mpContainer->getRoots();
   int internalsteps = 0; 
+  mStatus = NORMAL;
 
   //Saving of the initial Math-Container in the mHistory - for interpolation
   TimeStatePair initial;
@@ -222,7 +263,7 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   mHistoryinter.push_back(initial);
 
   //the actual integration + stop if the internalsteps exceed the maximal step limit 
-  while (*mpContainerStateTime < outputTime)
+  while (*mpContainerStateTime < outputTime && mStatus == NORMAL)
   {
     doOneStep(*mpContainerStateTime);
     internalsteps++; 
@@ -236,6 +277,9 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
         {
           //clearing the mHistory for next steps 
           mHistoryinter.clear();
+          mRootFinder.restart(); 
+          destroyRootMask();
+
           return ROOT;
         }
   } 
@@ -261,7 +305,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
   //precaution of the step
   mpContainer->updateSimulatedValues(false);
   mpContainer->updateRootValues(false);
-  *mpRootValueOld = mpContainer->getRoots();
+  //*mpRootValueOld = mpContainer->getRoots();
   bool stepreject = false; 
   bool accepted = false;
 
@@ -401,85 +445,8 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
         mpContainer->updateSimulatedValues(false); 
         mpContainer->updateRootValues(false);
       }
-
-      // == EVENTS == 
-    if(mNumRoot>0)
-    {
-      if (checkRoots())
-      {
-        // C_FLOAT64 t; 
-        // C_FLOAT64 f;
-        // findRoot(startTime, *mpContainerStateTime, t, f); 
-        // C_FLOAT64 RootValue = f; 
-        // C_FLOAT64 RootTime = t; 
-        C_FLOAT64 RootTime; 
-        C_FLOAT64 RootValue; 
-        CBrent::findRoot(startTime, *mpContainerStateTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9);
-
-        C_FLOAT64 Tolerance = 100.0 * (fabs(RootTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
-        //Precaution if the Root is not the wanted root 
-        if (RootTime > outputTime)
-        {
-          mStatus = NORMAL;
-        }
-
-        else if (fabs(RootTime -mLastRootTime) < Tolerance)
-        {
-          mStatus = NORMAL;
-        }
-        //now get back to the Event time 
-        else if (mLastRootTime < RootTime)
-        {
-          mLastRootTime = RootTime;
-          // if(CBrent::findRoot(startTime, RootTime, mpRootValueCalculator, &RootTime, &RootValue, 1e-9))
-          // {
-          // CCopasiMessage(CCopasiMessage::ERROR, "Discontinous events");
-          // }
-          //Update everything to the pinterpolated output 
-          std::vector<C_FLOAT64> pinterpolatedRootstate = interpolateAttime(RootTime);
-          memcpy(mpContainerStateTime, pinterpolatedRootstate.data(), mdimension * sizeof(C_FLOAT64));
-          memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
-          *mpContainerStateTime = RootTime;
-          mpContainer->updateSimulatedValues(false); 
-          mpContainer->updateRootValues(false);
-          *mpRootValueNew = mpContainer->getRoots();
-
-          // Mark the appropriate root
-          C_INT * pRootFound = mRootsFound.array();
-          C_INT * pRootFoundEnd = pRootFound + mNumRoot;
-          C_FLOAT64 * pRootValue = mpRootValueNew->array();
-
-          Tolerance = 100.0 * (fabs(RootValue) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
-    
-          for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
-          {
-          // Added a numerical Tolerance just to make sure 
-          //if (*pRootValue == RootValue || *pRootValue == -RootValue)
-            if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance || std::fabs(*pRootValue-0) < Tolerance )
-              {
-                *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
-              }
-            else
-              {
-                *pRootFound = static_cast< C_INT >(CMath::RootToggleType::NoToggle);
-              }
-          }
-        
-          //most important thing to fire Events 
-          mStatus = ROOT;
-          return RootTime - startTime;
-        }
-      }
-    else 
-      {
-        mStatus = NORMAL; 
-        return *mpContainerStateTime;
-        mHistoryinter.clear();
-      }
     }
-  }
-  
-  else
+    else
     {
       // step is not accepted -> stepsize will get reduced 
       //mStepsize = mStepsize * std::sqrt(euler_rtolerance / localerror); 
@@ -493,6 +460,38 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       // if the stepsize is small so that Euler just takes ages - the intervalsteplimit takes care of that 
     }
   }
+
+      // == EVENTS == 
+    if(mNumRoots>0)
+    {
+      switch (mRootFinder.checkRoots(startTime, *mpContainerStateTime, mRootMasking))
+      {
+        case CRootFinder::NotFound: 
+          mStatus = NORMAL; 
+          break;
+        case CRootFinder::NotAdvanced:
+          if (mRootMasking == CRootFinder::ALL)
+              CCopasiMessage(CCopasiMessage::ERROR, "Not advanced Roots");
+          createRootMask();
+          break; 
+        case CRootFinder::InvalidInterval:
+          CCopasiMessage(CCopasiMessage::ERROR, "Invalid interval for rootfinding");
+          mStatus = FAILURE; 
+          break;
+        case CRootFinder::RootFound:
+          C_FLOAT64 RootTime = mRootFinder.getRootTime();
+          std::vector<C_FLOAT64> interstate = interpolateAttime(RootTime);
+          memcpy(mpContainerStateTime, interstate.data(), mdimension * sizeof(C_FLOAT64));
+          memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+          *mpContainerStateTime = RootTime;
+          mpContainer->updateSimulatedValues(false); 
+          mpContainer->updateRootValues(false);
+          mStatus = ROOT; 
+          break; 
+      }
+      if (mRootMasking == CRootFinder::ALL)
+        mRootMasking = CRootFinder::DISCRETE;
+    }
 }
 
 
@@ -686,4 +685,88 @@ C_FLOAT64 CEulerMethod::rootValue(const C_FLOAT64 & time)
     }
   return MaxRootValue;
 }
+
+void CEulerMethod::evalRoot(const double & time, CVectorCore< C_FLOAT64 > & rootValues)
+{
+  // Sanity Checks
+  std::vector<C_FLOAT64> y_original(mpY, mpY + mdimension);
+  C_FLOAT64 t_old = *mpContainerStateTime;
+
+  assert(rootValues.size() == mNumRoots);
+
+  std::vector<C_FLOAT64> interstate = interpolateAttime(time);
+  memcpy(mpContainerStateTime, interstate.data(), mdimension * sizeof(C_FLOAT64));
+  memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+  *mpContainerStateTime = time;
+  mpContainer->updateSimulatedValues(false); 
+  mpContainer->updateRootValues(false);
+  //*mpRootValueNew = mpContainer->getRoots();
+
+  if (mNumRoots > 0)
+    {
+      memcpy(rootValues.begin(), mContainerRoots.begin(), mNumRoots * sizeof(C_FLOAT64));
+    }
+  
+  memcpy(mpContainerStateTime, y_original.data(), mdimension * sizeof(C_FLOAT64));
+  memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+
+   *mpContainerStateTime = t_old; 
+}
+
+void CEulerMethod::createRootMask()
+{
+  double absoluteTolerance = 1.e-12;
+
+  CVector< C_FLOAT64 > RootDerivatives;
+  RootDerivatives.resize(mNumRoots);
+
+  mpContainer->updateSimulatedValues(false);
+  mpContainer->calculateRootDerivatives(RootDerivatives);
+
+  C_INT *pMask = mRootMask.begin();
+  C_INT *pMaskEnd = mRootMask.end();
+  const C_FLOAT64 * pRootValue = mContainerRoots.begin();
+  const C_FLOAT64 * pRootDerivative = RootDerivatives.array();
+  const bool * pDiscrete = mpContainer->getRootIsDiscrete().begin();
+
+  for (; pMask != pMaskEnd; ++pMask, ++pRootValue, ++pRootDerivative, ++pDiscrete)
+    if (*pDiscrete)
+      {
+        *pMask = CRootFinder::DISCRETE;
+      }
+    else if (fabs(*pRootDerivative) < absoluteTolerance &&
+             fabs(*pRootValue) < 1e3 * std::numeric_limits< C_FLOAT64 >::min())
+      {
+        *pMask = CRootFinder::CONTINUOUS;
+      }
+
+  mRootMasking = CRootFinder::ALL;
+
+  // std::cout << "mRootMask:     " << mRootMask << std::endl;
+}
+
+void CEulerMethod::destroyRootMask()
+{
+  mpContainer->updateSimulatedValues(false);
+
+  C_FLOAT64 RootLimit = (1.0 + std::numeric_limits< C_FLOAT64 >::epsilon()) * fabs(mRootFinder.getRootError()) + 100.0 * std::numeric_limits< C_FLOAT64 >::min();
+  mRootMasking = CRootFinder::NONE;
+
+  C_INT *pMask = mRootMask.begin() + 1;
+  C_INT *pMaskEnd = mRootMask.end();
+  const C_FLOAT64 * pRootValue = mContainerRoots.begin();
+
+  for (; pMask != pMaskEnd; ++pMask, ++pRootValue)
+    if (*pMask != CRootFinder::DISCRETE ||
+        fabs(*pRootValue) >= RootLimit)
+      {
+        *pMask = CRootFinder::NONE;
+      }
+    else
+      {
+        mRootMasking = CRootFinder::DISCRETE;
+      }
+}
+
+
 
