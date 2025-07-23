@@ -254,4 +254,6 @@ private:
   size_t mRootCounter;
 
   C_FLOAT64 * mpRootRelativeTolerance;
+
+  virtual void stateChange(const CMath::StateChange & change);
 };

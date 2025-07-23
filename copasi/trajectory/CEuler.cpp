@@ -272,15 +272,14 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
      CCopasiMessage(CCopasiMessage::ERROR, MCTrajectoryMethod + 12);
      return FAILURE; 
     }
-    if (mStatus == ROOT)//||
-          //(mNumRoot > 0 && checkRoots()))
+    if (mStatus == ROOT)
         {
           //clearing the mHistory for next steps 
           mHistoryinter.clear();
-          mRootFinder.restart(); 
-          destroyRootMask();
+          // mRootFinder.restart(); 
+          // destroyRootMask();
 
-          return ROOT;
+          return mStatus;
         }
   } 
   
@@ -461,7 +460,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     }
   }
 
-      // == EVENTS == 
+    // == EVENTS == 
     if(mNumRoots>0)
     {
       switch (mRootFinder.checkRoots(startTime, *mpContainerStateTime, mRootMasking))
@@ -768,5 +767,14 @@ void CEulerMethod::destroyRootMask()
       }
 }
 
+void CEulerMethod::stateChange(const CMath::StateChange & change)
+{
+  if (change.isSet(CMath::eStateChange::ContinuousSimulation) ||
+      change.isSet(CMath::eStateChange::State))
+    {
+      mRootFinder.restart();
+    }
 
+  destroyRootMask();
+}
 
