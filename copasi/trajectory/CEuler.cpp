@@ -281,21 +281,25 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
 
           return mStatus;
         }
+    if (mpProblem->getAutomaticStepSize())
+    {
+      break;
+    }
   } 
   
   //Interpolation -> get the Trajectory Problem defined state at the requested time 
-  std::vector<C_FLOAT64> pinterpolatedState = interpolateAttime(outputTime);
-  //Update everything to the pinterpolated output 
-  memcpy(mpContainerStateTime, pinterpolatedState.data(), mdimension * sizeof(C_FLOAT64));
-  memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
-  *mpContainerStateTime = outputTime;
-  //updating the state and the roots -> for root finding 
-  mpContainer->updateSimulatedValues(false);
-  mpContainer->updateRootValues(false);
+  // std::vector<C_FLOAT64> pinterpolatedState = interpolateAttime(outputTime);
+  // //Update everything to the pinterpolated output 
+  // memcpy(mpContainerStateTime, pinterpolatedState.data(), mdimension * sizeof(C_FLOAT64));
+  // memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
+  // *mpContainerStateTime = outputTime;
+  // //updating the state and the roots -> for root finding 
+  // mpContainer->updateSimulatedValues(false);
+  // mpContainer->updateRootValues(false);
   
   //clearing the mHistory for next steps 
   mHistoryinter.clear();
-  return NORMAL;
+  return mStatus;
 }
 
 
