@@ -708,8 +708,9 @@ void CEulerMethod::evalRoot(const double & time, CVectorCore< C_FLOAT64 > & root
   
   memcpy(mpContainerStateTime, y_original.data(), mdimension * sizeof(C_FLOAT64));
   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
-
-   *mpContainerStateTime = t_old; 
+  *mpContainerStateTime = t_old; 
+  mpContainer->updateSimulatedValues(false); 
+  mpContainer->updateRootValues(false);
 }
 
 void CEulerMethod::createRootMask()
