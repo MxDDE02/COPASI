@@ -23,6 +23,7 @@ public:
   // typedef void (*evalG)(const C_INT *, const double *, const double *, const C_INT *, double *);
   typedef void (*evalM)(C_INT *, double *, C_INT *, double *, C_INT *);
   typedef void (*evalO)(C_INT *, double *, double *, double *, double *, C_INT *, C_INT *, double *, C_INT *, C_INT *);
+  double contr5_(C_INT *i__, double *x, double *cont, C_INT *lrc);
 
   C_INT operator()(C_INT * n,      //  Number of equations
                    evalF fcn,      //  Evaluate f

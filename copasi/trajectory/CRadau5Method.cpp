@@ -1131,6 +1131,9 @@ void CRadau5Method::interpolate(C_FLOAT64 t)
   }
   else 
   {
+    // C_INT i = 0;             
+    // C_INT dummy = 0;
+    // mRADAU.contr5_(&i, &t, double * cont, &dummy);
     resetState(StartState);
     Status interstate=NORMAL; 
     dostep(startsteptime, t, interstate); 

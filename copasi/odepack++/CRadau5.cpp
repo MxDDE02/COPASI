@@ -1907,7 +1907,7 @@ L179:
 
 /* *********************************************************** */
 
-double contr5_(C_INT *i__, double *x, double *cont, C_INT *lrc)
+double CRadau5::contr5_(C_INT *i__, double *x, double *cont, C_INT *lrc)
 {
   /* System generated locals */
   double ret_val;
