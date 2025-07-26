@@ -366,15 +366,15 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     C_FLOAT64 alpha = (1/k) - (0.75 * beta); 
     C_FLOAT64 safe = 0.9; 
     C_FLOAT64 minhscale = 0.2; 
-    C_FLOAT64 maxhscale = 2.0; 
+    C_FLOAT64 maxhscale = 10.0; 
     C_FLOAT64 sum_sq = 0.0;
     C_FLOAT64 term = 0.0;
     if(mdimension>1)
     {
     for (int i = 1; i < mdimension; ++i)
     {
-      deltaerror[i] = std::abs(halfstep[i] - fullstep[i]);
-      scale[i] = euler_atolerance + std::max(fabs(y_original[i]), fabs(fullstep[i])) * euler_rtolerance;
+      deltaerror[i] = fabs(halfstep[i] - fullstep[i]);
+      scale[i] = euler_atolerance + std::max(fabs(y_original[i]), fabs(halfstep[i])) * euler_rtolerance;
       term = deltaerror[i] / scale[i];
       sum_sq += term * term;
     }
@@ -421,7 +421,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       }
       else
       {
-        hscale = safe * pow(localerror,-alpha)*pow(errorold, beta);
+        hscale = 2 * pow(localerror,-alpha)*pow(errorold, beta);
         if(hscale<minhscale){
           hscale = minhscale;
         }
@@ -433,7 +433,6 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       if(stepreject) //previous step was not accepted
       {
         hscale = std::max(hscale, 1.0); 
-        mStepsize *= hscale;
       }
         mStepsize *= hscale; 
         errorold = std::max(localerror, 1.0e-04); 
