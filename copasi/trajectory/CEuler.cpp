@@ -324,30 +324,39 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     std::vector<C_FLOAT64> halfstep(mdimension);
     std::vector<C_FLOAT64> deltaerror(mdimension);
     std::vector<C_FLOAT64> scale(mdimension);
+    std::vector<C_FLOAT64> k1(mdimension), k2(mdimension), k3(mdimension);
 
     // == 1. calculate rates ==
     evalF(mpContainerStateTime, mpY, mpYd);
+
+    // k1 = f(t_old, y_original)
+    for (int i = 0; i < mdimension; ++i)
+      k1[i] = mpYd[i];
     
 
     // == 2. full step ==
     for (int i = 0; i < mdimension; ++i)
-      fullstep[i] = y_original[i] + current_stepsize * mpYd[i];
-
-    // == 3. first half step ==
-    for (int i = 0; i < mdimension; ++i)
-      mpY[i] = y_original[i] + (current_stepsize*0.5) * mpYd[i];
-
-    *mpContainerStateTime = t_old + (current_stepsize*0.5);
+    {
+      mpY[i] = y_original[i] + current_stepsize * k1[i];
+      fullstep[i] = mpY[i];
+    }
+    *mpContainerStateTime = t_old + current_stepsize;
 
     evalF(mpContainerStateTime, mpY, mpYd);
+
+    for (int i = 0; i < mdimension; ++i)
+      k2[i] = mpYd[i];
     // memcpy(mpContainerStateTime, mpY, mdimension * sizeof(C_FLOAT64));
     // mpContainer->updateSimulatedValues(false);
     // memcpy(yd_temp.data(), mpYdot, mdimension * sizeof(C_FLOAT64));
 
-    // == 4. second half step ==
+    // == 4. Heun step ==
     for (int i = 0; i < mdimension; ++i)
-      halfstep[i] = mpY[i] + (current_stepsize*0.5) * mpYd[i];
-    
+    {
+      k3[i] = (k1[i] + k2[i])/2; 
+      halfstep[i] = y_original[i] + current_stepsize * k3[i];
+
+    }
     //*mpContainerStateTime = t_old + mStepsize / 2.0;
 
     // == 5. error estimation ==
@@ -364,7 +373,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       beta = 0.0;
     }
     C_FLOAT64 alpha = (1/k) - (0.75 * beta); 
-    C_FLOAT64 safe = 0.9; 
+    C_FLOAT64 safe = 0.7; 
     C_FLOAT64 minhscale = 0.2; 
     C_FLOAT64 maxhscale = 10.0; 
     C_FLOAT64 sum_sq = 0.0;
@@ -399,11 +408,10 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       for (int i = 0; i < mdimension; ++i)
         mpY[i] = halfstep[i];
 
-      *mpContainerStateTime = t_old + current_stepsize;
-
       //this updates the math container to the new state 
       //*mpContainerStateTime = t_old + mStepsize;
-      memcpy(mpContainerStateTime, mpY, mdimension * sizeof(C_FLOAT64));
+      memcpy(mpContainerStateTime,mpY, mdimension * sizeof(C_FLOAT64));
+      *mpContainerStateTime = t_old + current_stepsize;
       mpContainer->updateSimulatedValues(false);
       mpContainer->updateRootValues(false);
 
