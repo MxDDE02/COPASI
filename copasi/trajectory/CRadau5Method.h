@@ -39,6 +39,7 @@ private:
 
   struct State
   {
+    C_FLOAT64 H; 
     CVector< C_FLOAT64 > ContainerState;
     CVector< C_FLOAT64 > DWork;
     CVector< C_INT > IWork;

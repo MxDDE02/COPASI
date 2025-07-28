@@ -859,7 +859,6 @@ bool CRadau5Method::hasStateChanged(const CVectorCore< C_FLOAT64 > & startState)
 void CRadau5Method::saveState(CRadau5Method::State & state, const CTrajectoryMethod::Status & status) const
 {
   *mpContainerStateTime = mTime;
-
   state.ContainerState = mContainerState;
   state.DWork = mDWork;
   state.IWork = mIWork;
@@ -867,6 +866,8 @@ void CRadau5Method::saveState(CRadau5Method::State & state, const CTrajectoryMet
   state.RootMask = mRootMask;
   state.RootMasking = mRootMasking;
   state.Status = status;
+  state.H = H; 
+
 
   mRADAU.saveState(state.LsodaState);
 }
@@ -874,7 +875,7 @@ void CRadau5Method::saveState(CRadau5Method::State & state, const CTrajectoryMet
 void CRadau5Method::resetState(CRadau5Method::State & state)
 {
   mLsodaStatus = (state.Status == ROOT) ? 3 : 2;
-
+  H = state.H; 
   mContainerState = state.ContainerState;
   mTime = *mpContainerStateTime;
   mDWork = state.DWork;
