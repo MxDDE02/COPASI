@@ -75,7 +75,10 @@ CRadau5Method::CRadau5Method(const CDataContainer * pParent,
   rootfound(false), 
   internalroottime(), 
   internalroottimened(), 
-  oldoldTime(0)
+  oldoldTime(0), 
+  beginning(), 
+  pbeginning(NULL), 
+  Hstart(0)
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -124,7 +127,10 @@ CRadau5Method::CRadau5Method(const CRadau5Method & src,
   rootfound(false), 
   internalroottime(), 
   internalroottimened(), 
-  oldoldTime(0)
+  oldoldTime(0), 
+  beginning(), 
+  pbeginning(NULL), 
+  Hstart(0)
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -331,6 +337,10 @@ void CRadau5Method::start()
   rootfound = false; 
   internalroottime.clear(); 
   internalroottimened.clear();
+  beginning.resize(mData.dim);
+  pbeginning = beginning.array(); 
+  memcpy(pbeginning, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+  Hstart = H; 
   
 
   
@@ -856,7 +866,8 @@ bool CRadau5Method::hasStateChanged(const CVectorCore< C_FLOAT64 > & startState)
 
   return false;
 }
-void CRadau5Method::saveState(CRadau5Method::State & state, const CTrajectoryMethod::Status & status) const
+
+void CRadau5Method::saveState(CRadau5Method::State & state, const CTrajectoryMethod::Status & status) 
 {
   *mpContainerStateTime = mTime;
   state.ContainerState = mContainerState;
@@ -865,9 +876,9 @@ void CRadau5Method::saveState(CRadau5Method::State & state, const CTrajectoryMet
   state.RootsFound = mRootsFound;
   state.RootMask = mRootMask;
   state.RootMasking = mRootMasking;
-  state.Status = status;
   state.H = H; 
-
+  memcpy(pbeginning, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64)); 
+  Hstart = H; 
 
   mRADAU.saveState(state.LsodaState);
 }
@@ -883,6 +894,9 @@ void CRadau5Method::resetState(CRadau5Method::State & state)
   mRootsFound = state.RootsFound;
   mRootMask = state.RootMask;
   mRootMasking = state.RootMasking;
+  H = Hstart; 
+
+  memcpy(mpContainerStateTime, pbeginning, mData.dim * sizeof(C_FLOAT64)); 
 
   mRADAU.resetState(state.LsodaState);
 }

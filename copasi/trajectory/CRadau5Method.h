@@ -374,7 +374,7 @@ private:
   CTrajectoryMethod::Status peekAhead();
 
   bool hasStateChanged(const CVectorCore< C_FLOAT64 > & startState) const;
-  void saveState(State & state, const CTrajectoryMethod::Status & status) const;
+  void saveState(State & state, const CTrajectoryMethod::Status & status);
   void resetState(State & state);
 
 protected:
@@ -413,6 +413,13 @@ protected:
   std::vector<C_FLOAT64> internalroottimened;
 
   C_FLOAT64 oldoldTime; 
+
+  CVector<C_FLOAT64> beginning;
+  C_FLOAT64 * pbeginning; 
+
+  C_FLOAT64 Hstart; 
+
+
 
 
 };
