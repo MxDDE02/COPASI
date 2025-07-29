@@ -362,7 +362,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     // == 5. error estimation ==
     C_FLOAT64 localerror = 0.0;
     C_FLOAT64 hscale; 
-    C_FLOAT64 k =2; 
+    C_FLOAT64 k =3; 
     C_FLOAT64 beta; 
     if(PI==true)
     {
@@ -429,7 +429,7 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
       }
       else
       {
-        hscale = 2 * pow(localerror,-alpha)*pow(errorold, beta);
+        hscale = pow(localerror,-alpha)*pow(errorold, beta);
         if(hscale<minhscale){
           hscale = minhscale;
         }
