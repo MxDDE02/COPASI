@@ -876,9 +876,9 @@ void CRadau5Method::saveState(CRadau5Method::State & state, const CTrajectoryMet
   state.RootsFound = mRootsFound;
   state.RootMask = mRootMask;
   state.RootMasking = mRootMasking;
-  state.H = H; 
-  memcpy(pbeginning, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64)); 
-  Hstart = H; 
+  // state.H = H; 
+  // memcpy(pbeginning, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64)); 
+  // Hstart = H; 
 
   mRADAU.saveState(state.LsodaState);
 }
@@ -894,9 +894,9 @@ void CRadau5Method::resetState(CRadau5Method::State & state)
   mRootsFound = state.RootsFound;
   mRootMask = state.RootMask;
   mRootMasking = state.RootMasking;
-  H = Hstart; 
+//   H = Hstart; 
 
-  memcpy(mpContainerStateTime, pbeginning, mData.dim * sizeof(C_FLOAT64)); 
+//  memcpy(mpContainerStateTime, pbeginning, mData.dim * sizeof(C_FLOAT64)); 
 
   mRADAU.resetState(state.LsodaState);
 }
