@@ -451,6 +451,7 @@ private:
   bool * mpUseRandomSeed;
   unsigned C_INT32 * mpRandomSeed;
   CCopasiParameterGroup * mpFastReactions;
+  std::chrono::duration<double> totalIntegrationTime;
 };
 
 #endif // COPASI_CHybridMethodODE45

@@ -276,6 +276,7 @@ void CHybridMethodODE45::initializeParameter()
 void CHybridMethodODE45::start()
 {
   CTrajectoryMethod::start();
+  totalIntegrationTime = std::chrono::duration<double>(0); // Reset
 
   /* Release previous state and make the initialState the current */
   mLastSuccessState = mContainerState;
@@ -507,6 +508,7 @@ void CHybridMethodODE45::determineIntegrationType()
 CTrajectoryMethod::Status CHybridMethodODE45::step(const double & deltaT,
     const bool & /* final */)
 {
+  auto start_time = std::chrono::high_resolution_clock::now();
   // do several steps
   C_FLOAT64 time    = *mpContainerStateTime;
   C_FLOAT64 endTime  = time + deltaT;
@@ -557,6 +559,13 @@ CTrajectoryMethod::Status CHybridMethodODE45::step(const double & deltaT,
     }
 
   mLastSuccessState = mContainerState;
+  auto end_time = std::chrono::high_resolution_clock::now();
+  totalIntegrationTime += end_time - start_time; // Zeit aufsummieren
+  if (*mpContainerStateTime >= endTime)
+  {
+    std::cout << "[Integrator] Total integration time: "
+              << totalIntegrationTime.count() << " seconds." << std::endl;
+  }
 
   return NORMAL;
 }

@@ -256,4 +256,6 @@ private:
   C_FLOAT64 * mpRootRelativeTolerance;
 
   virtual void stateChange(const CMath::StateChange & change);
+
+  std::chrono::duration<double> totalIntegrationTime;
 };
