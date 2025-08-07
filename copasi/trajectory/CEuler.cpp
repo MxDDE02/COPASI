@@ -113,7 +113,7 @@ bool CEulerMethod::elevateChildren()
 
 void CEulerMethod::start()
 {
-  totalIntegrationTime = std::chrono::duration<double>(0); // Reset
+  //totalIntegrationTime = std::chrono::duration<double>(0); // Reset
   // 1. Call base class method to initialize container state and time
   CTrajectoryMethod::start();
 
@@ -189,7 +189,7 @@ void CEulerMethod::start()
   // mLastRootTime = -std::numeric_limits< C_FLOAT64 >::infinity();
   // *mpRootValueOld = mpContainer->getRoots();
 
-  errorold = errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
+  errorold = -std::numeric_limits< C_FLOAT64 >::infinity();
 }
 
 bool CEulerMethod::isValidProblem(const CCopasiProblem * pProblem)
@@ -249,7 +249,7 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
 
 CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool & /* final */)
 {
-  auto start_time = std::chrono::high_resolution_clock::now();
+  //auto start_time = std::chrono::high_resolution_clock::now();
   mRootCounter = 0; 
   outputTime = *mpContainerStateTime + deltaT;
   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
@@ -303,13 +303,13 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
   //clearing the mHistory for next steps 
   mHistoryinter.clear();
   // TIMER ENDE UND AUSGABE
-  auto end_time = std::chrono::high_resolution_clock::now();
-  totalIntegrationTime += end_time - start_time; // Zeit aufsummieren
-  if (*mpContainerStateTime >= outputTime)
-  {
-    std::cout << "[Integrator] Total integration time: "
-              << totalIntegrationTime.count() << " seconds." << std::endl;
-  }
+  // auto end_time = std::chrono::high_resolution_clock::now();
+  // totalIntegrationTime += end_time - start_time; // Zeit aufsummieren
+  // if (*mpContainerStateTime >= outputTime)
+  // {
+  //   std::cout << "[Integrator] Total integration time: "
+  //             << totalIntegrationTime.count() << " seconds." << std::endl;
+  // }
 
   return mStatus;
 }

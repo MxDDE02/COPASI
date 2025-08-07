@@ -233,12 +233,27 @@ private:
     */
   std::vector<TimeStatePair> mHistoryinter;
 
+  /**
+    * error from the previous step for the PI control - default is -inf.
+  */
   C_FLOAT64 errorold; 
+
+  /**
+    * for Brent's method - returns the highest rootvalue of at a given time, for which the rootvalues have changed signs
+  */
   C_FLOAT64 rootValue(const C_FLOAT64 & time); 
 
+   /**
+    * linear interpolation - is not used anymore 
+  */
   void findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f);
 
+   /**
+    * number of rootfunctions
+  */
   size_t mNumRoots; 
+
+  // == Rootfinder Class == 
   CVectorCore< C_FLOAT64 > mContainerRoots;
 
   CVector< C_INT > mRootMask;
@@ -257,5 +272,6 @@ private:
 
   virtual void stateChange(const CMath::StateChange & change);
 
-  std::chrono::duration<double> totalIntegrationTime;
+  // == Time implementation == 
+  //std::chrono::duration<double> totalIntegrationTime;
 };
