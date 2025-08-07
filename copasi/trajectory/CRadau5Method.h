@@ -383,41 +383,108 @@ protected:
    */
   void destroyRootMask();
 
+
+  /**
+   * Rootchecking (change of signs of the rootfuction).
+   * @return bool - hasRoot
+   */
   bool checkRoots(); 
 
   //C_FLOAT64 findRoot(C_FLOAT64 startTime, C_FLOAT64 endTime, C_FLOAT64 &t, C_FLOAT64 &f); 
 
+  /**
+   * detection of Root in the evalF function 
+   * oldTime is used as a storage to see which times were already done 
+   * the default is 0 and after each evalF it is set to mTime
+   */
   C_FLOAT64 oldTime; 
 
+    /**
+   * detection of Root in the evalF function 
+   * oldTime is used as a storage to if a step recaclulation has been performed
+   */
+  C_FLOAT64 oldoldTime; 
 
+ /**
+   * used to safe the time, when mRadau is used 
+   * needed for the rollback 
+   */
   C_FLOAT64 startsteptime; 
+
+   /**
+   * used to safe the time, after mRadau was used 
+   * needed for the rollback 
+   */
   C_FLOAT64 aftersteptime; 
 
+  // == Brent's method for rootfinding == 
   CBrent::Eval * mpRootValueCalculator;
   C_FLOAT64 rootValue(const C_FLOAT64 & time); 
+
+   /**
+   * bool to see if rootchecking in the evalF function should still be done  
+   */
   bool rootfound; 
   // C_FLOAT64 internalroottime; 
   // C_FLOAT64 internalroottimened; 
 
+  /**
+   *  This instructs the method to calculate a time step of deltaT
+   *  starting with the current state, i.e., the result of the previous
+   *  step.
+   *  this is used to seperate the step from the rootfinder in the actual step method 
+   *  updates the mathcontainer automatically 
+   *  @param startTime
+   *  @param endTime 
+   *  @param Status of the integrator - should be "NORMAL"
+   *
+   */
   virtual Status dostep(C_FLOAT64 startTime, C_FLOAT64 EndTime, Status start); 
 
+   /**
+   * State of the start 
+   */
   State StartState;
+
+   /**
+   * Status of the start  
+   */
   Status iStatus;
 
+  /**
+   * State after the step 
+   */
   State EndState;
+
+  /**
+   * Status after the step  
+   */
   Status nStatus;
 
+
+  /**
+   *  Function able to do a "rollback" = interpolation for the whole integration rather a small intervall
+   *  @param t where u want to "interpolate"
+   *  updates the math container 
+   *
+   */
   void interpolate(C_FLOAT64 t); 
 
+  /**
+   *  Vector to store the start time of a root interval which will be checked after the integration
+   */
   std::vector<C_FLOAT64> internalroottime; 
+
+  /**
+   *  Vector to store the end time of a root interval which will be checked after the integration
+   */
   std::vector<C_FLOAT64> internalroottimened;
 
-  C_FLOAT64 oldoldTime; 
 
-  CVector<C_FLOAT64> beginning;
-  C_FLOAT64 * pbeginning; 
+  // CVector<C_FLOAT64> beginning;
+  // C_FLOAT64 * pbeginning; 
 
-  C_FLOAT64 Hstart; 
+  //C_FLOAT64 Hstart; 
 
 
 

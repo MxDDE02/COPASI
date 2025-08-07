@@ -75,10 +75,10 @@ CRadau5Method::CRadau5Method(const CDataContainer * pParent,
   rootfound(false), 
   internalroottime(), 
   internalroottimened(), 
-  oldoldTime(0), 
-  beginning(), 
-  pbeginning(NULL), 
-  Hstart(0)
+  oldoldTime(0) 
+  // beginning(), 
+  // pbeginning(NULL), 
+  //Hstart(0)
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -127,10 +127,10 @@ CRadau5Method::CRadau5Method(const CRadau5Method & src,
   rootfound(false), 
   internalroottime(), 
   internalroottimened(), 
-  oldoldTime(0), 
-  beginning(), 
-  pbeginning(NULL), 
-  Hstart(0)
+  oldoldTime(0)
+  // beginning(), 
+  // pbeginning(NULL), 
+  // Hstart(0)
 {
   assert((void *) &mData == (void *) &mData.dim);
 
@@ -337,10 +337,10 @@ void CRadau5Method::start()
   rootfound = false; 
   internalroottime.clear(); 
   internalroottimened.clear();
-  beginning.resize(mData.dim);
-  pbeginning = beginning.array(); 
-  memcpy(pbeginning, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
-  Hstart = H; 
+  // beginning.resize(mData.dim);
+  // pbeginning = beginning.array(); 
+  // memcpy(pbeginning, mpContainerStateTime, mData.dim * sizeof(C_FLOAT64));
+  // Hstart = H; 
   
 
   
