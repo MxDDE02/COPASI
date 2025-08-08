@@ -284,12 +284,12 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
                   C_INT * pRootFoundEnd = pRootFound + mNumRoots;
                   C_FLOAT64 * pRootValue = mpRootValueNew->array();
 
-                  Tolerance = 100.0 * (fabs(RootTime) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
+                  C_FLOAT64 Tolerance = 100.0 * (fabs(RootValue) * std::numeric_limits< C_FLOAT64 >::epsilon() + std::numeric_limits< C_FLOAT64 >::min());
 
                   for (; pRootFound != pRootFoundEnd; ++pRootFound, ++pRootValue)
                   // Added a numerical Tolerance just to make sure 
                     //if (*pRootValue == RootValue || *pRootValue == -RootValue)
-                    if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance ||std::fabs(*pRootValue + 0) < Tolerance)
+                    if (std::fabs(*pRootValue - RootValue) < Tolerance || std::fabs(*pRootValue + RootValue) < Tolerance ||std::fabs(*pRootValue) < RootValue)
                       {
                         *pRootFound = static_cast< C_INT >(CMath::RootToggleType::ToggleBoth);
                       }
