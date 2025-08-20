@@ -98,7 +98,7 @@ void CEulerMethod::initializeParameter()
   assertParameter("initial step size", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000001);
   assertParameter("absolute tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000000001);
   assertParameter("relative tolerance", CCopasiParameter::Type::DOUBLE, (C_FLOAT64) 0.000001);
-  assertParameter("Maximal internal steps", CCopasiParameter::Type::INT, 1000000);
+  assertParameter("Maximal internal steps", CCopasiParameter::Type::INT, 100000);
   assertParameter("PI controller for adaptive stepsize", CCopasiParameter::Type::BOOL, true);
   assertParameter("Tolerance for Root Finder", CCopasiParameter::Type::UDOUBLE, (C_FLOAT64) 1.0e-6);
   mpRootRelativeTolerance = assertParameter("Tolerance for Root Finder", CCopasiParameter::Type::UDOUBLE, (C_FLOAT64) 1.0e-6);
