@@ -164,6 +164,7 @@ bool CRadau5Method::elevateChildren()
   return true;
 }
 
+// == Comment because it was ust copied from LSODA and didnt fit in
 // virtual
 // void CRadau5Method::stateChange(const CMath::StateChange & change)
 // {
@@ -254,7 +255,7 @@ CTrajectoryMethod::Status CRadau5Method::step(const double & deltaT,
 
     if (!checkRoots())
       {
-        // Element entfernen
+        // erase elements
         internalroottime.erase(internalroottime.begin() + idx);
         internalroottimened.erase(internalroottimened.begin() + idx);
       }
