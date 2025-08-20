@@ -13,7 +13,6 @@
 #include "copasi/model/CModel.h"
 #include <vector>
 #include "copasi/core/CRootContainer.h"
-#include <chrono>
 
 CEulerMethod::CEulerMethod(const CDataContainer * pParent,
                            const CTaskEnum::Method & methodType,
@@ -113,7 +112,6 @@ bool CEulerMethod::elevateChildren()
 
 void CEulerMethod::start()
 {
-  //totalIntegrationTime = std::chrono::duration<double>(0); // Reset
   // 1. Call base class method to initialize container state and time
   CTrajectoryMethod::start();
 
@@ -134,7 +132,7 @@ void CEulerMethod::start()
   PI = getValue< bool >("PI controller for adaptive stepsize");
   
 
-  // 7. Allocate memory 
+  // 6. Allocate memory 
   //mpY = new C_FLOAT64[mdimension];
   //mpYd = new C_FLOAT64[mdimension];
   //pinterpolated = new C_FLOAT64[mdimension];
@@ -145,7 +143,7 @@ void CEulerMethod::start()
   mY.resize(mdimension);
   mpY = mY.array();
 
-  // set outputime (to zero)
+  // 7. set outputime (to zero)
   outputTime = *mpContainerStateTime;
 
   // 8. Copy current state into local state vector
@@ -169,7 +167,6 @@ void CEulerMethod::start()
   mRootFinder.initialize(mpRootValueCalculator, *mpRootRelativeTolerance, mRootMask);
 
   mRoots.initialize(mRootFinder.getRootValues());
-  // We ignore the first root which checks for physical correctness as this is treated with only internally.
   mRootsFound.initialize(mNumRoots, const_cast< C_INT * >(mRootFinder.getToggledRoots().begin()));
 
   // mNumRoot = mpContainer->getRoots().size();
@@ -216,13 +213,6 @@ bool CEulerMethod::isValidProblem(const CCopasiProblem * pProblem)
   return true;
 }
 
-/* Uncomment this - if the integrator is written in Fortran 
-void CEulerMethod::EvalF(const C_INT * n, const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot, C_FLOAT64 *, C_INT *)
-{
-  static_cast<Data *>((void *) n)->pMethod->evalF(t, y, ydot);
-}
-*/
-
 void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * ydot)
 {
   //The comments just make a backup version of the current mpContainerStateTime 
@@ -235,12 +225,12 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
   //mpContainer->updateSimulatedValues(*mpReducedModel);
   mpContainer->updateSimulatedValues(false);
   memcpy(ydot, mpYdot, mdimension * sizeof(C_FLOAT64));
-//this is old debugging 
-#ifdef DEBUG_NUMERICS
-  std::cout << "State:     " << mpContainer->getState(false) << std::endl;
-  std::cout << "Rate:      " << mpContainer->getRate(false) << std::endl;
-#endif // DEBUG_NUMERICS
-//retreave the old value 
+  //this is old debugging 
+  #ifdef DEBUG_NUMERICS
+    std::cout << "State:     " << mpContainer->getState(false) << std::endl;
+    std::cout << "Rate:      " << mpContainer->getRate(false) << std::endl;
+  #endif // DEBUG_NUMERICS
+  //retreave the old value 
   memcpy(mpContainerStateTime, yTemp.array(), mdimension * sizeof(C_FLOAT64));
 
   return;
@@ -249,7 +239,7 @@ void CEulerMethod::evalF(const C_FLOAT64 * t, const C_FLOAT64 * y, C_FLOAT64 * y
 
 CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool & /* final */)
 {
-  //auto start_time = std::chrono::high_resolution_clock::now();
+  // == Initiliaziation ==
   mRootCounter = 0; 
   outputTime = *mpContainerStateTime + deltaT;
   memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
@@ -284,33 +274,14 @@ CTrajectoryMethod::Status CEulerMethod::step(const double & deltaT, const bool &
 
           return mStatus;
         }
+    // automatic interval selection
     if (mpProblem->getAutomaticStepSize())
     {
       break;
     }
   } 
   
-  //Interpolation -> get the Trajectory Problem defined state at the requested time 
-  // std::vector<C_FLOAT64> pinterpolatedState = interpolateAttime(outputTime);
-  // //Update everything to the pinterpolated output 
-  // memcpy(mpContainerStateTime, pinterpolatedState.data(), mdimension * sizeof(C_FLOAT64));
-  // memcpy(mpY, mpContainerStateTime, mdimension * sizeof(C_FLOAT64));
-  // *mpContainerStateTime = outputTime;
-  // //updating the state and the roots -> for root finding 
-  // mpContainer->updateSimulatedValues(false);
-  // mpContainer->updateRootValues(false);
-  
-  //clearing the mHistory for next steps 
   mHistoryinter.clear();
-  // TIMER ENDE UND AUSGABE
-  // auto end_time = std::chrono::high_resolution_clock::now();
-  // totalIntegrationTime += end_time - start_time; // Zeit aufsummieren
-  // if (*mpContainerStateTime >= outputTime)
-  // {
-  //   std::cout << "[Integrator] Total integration time: "
-  //             << totalIntegrationTime.count() << " seconds." << std::endl;
-  // }
-
   return mStatus;
 }
 
@@ -468,15 +439,12 @@ C_FLOAT64 CEulerMethod::doOneStep(C_FLOAT64 startTime)
     else
     {
       // step is not accepted -> stepsize will get reduced 
-      //mStepsize = mStepsize * std::sqrt(euler_rtolerance / localerror); 
-      //mStepsize = mStepsize * std::sqrt(0.9 / localerror); 
       hscale = std::max(safe*pow(localerror, -alpha), minhscale);
       mStepsize *= hscale;
       //bring back original state
       memcpy(mpY, y_original.data(), mdimension * sizeof(C_FLOAT64));
       *mpContainerStateTime = t_old;
       stepreject = true;
-      // if the stepsize is small so that Euler just takes ages - the intervalsteplimit takes care of that 
     }
   }
 
@@ -575,13 +543,6 @@ std::vector<C_FLOAT64> CEulerMethod::interpolateAttime(C_FLOAT64 t) const
 bool CEulerMethod::checkRoots()
 {
   bool hasRoots = false;
-
-  // Swap old and new root values
-  // CVector< C_FLOAT64 > * pTmp = mpRootValueOld;
-  // mpRootValueOld = mpRootValueNew;
-  // mpRootValueNew = pTmp;
-
-
   *mpRootValueNew = mpContainer->getRoots();
 
   //declare the important pointers 
